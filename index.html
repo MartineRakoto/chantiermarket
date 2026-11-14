@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ChantierMarket</title>
+  <meta name="description" content="ChantierMarket met en relation ceux qui ont des matériaux de chantier en trop et ceux qui en cherchent. Achetez moins cher que le neuf, près de chez vous, avec retrait sur place ou livraison autour de Lorient.">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<p class="notice">Maquette de projet : les coordonnées et informations légales sont fictives et seront remplacées avant la mise en ligne.</p>
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="#top" class="brand" aria-label="ChantierMarket, accueil">
+      <img src="assets/logo-mark.svg" alt="" width="40" height="40">
+      <span class="wordmark"><span>Chantier</span><span class="accent">Market</span></span>
+    </a>
+    <button class="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Ouvrir le menu">
+      <span></span><span></span><span></span>
+    </button>
+    <nav id="nav" class="nav">
+      <a href="#fonctionnement">Comment ça marche</a>
+      <a href="#tarifs">Tarifs</a>
+      <a href="#a-propos">À propos</a>
+      <a href="#faq">FAQ</a>
+      <a href="#contact">Contact</a>
+      <a href="app.html" class="btn btn-small">Accéder à la plateforme</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- Accueil -->
+  <section class="hero">
+    <div class="container hero-inner">
+      <div class="hero-text">
+        <p class="eyebrow">La marketplace des matériaux de chantier · Lorient</p>
+        <h1>Valorisez vos déchets, <span class="accent">construisez moins cher.</span></h1>
+        <p class="lead">ChantierMarket met en relation ceux qui ont des matériaux de chantier en trop et ceux qui en cherchent. Achetez moins cher que le neuf, près de chez vous, avec retrait sur place ou livraison.</p>
+        <div class="hero-actions">
+          <a href="app.html#catalogue" class="btn">Je veux acheter</a>
+          <a href="app.html#vendre" class="btn btn-ghost">Je veux vendre mes surplus</a>
+        </div>
+        <ul class="hero-facts">
+          <li><strong>Gratuit</strong> pour publier</li>
+          <li><strong>24 à 48 h</strong> pour être livré</li>
+          <li><strong>30 km</strong> autour de Lorient</li>
+        </ul>
+      </div>
+
+      <div class="hero-visual" aria-label="Aperçu de l'application">
+        <div class="phone">
+          <div class="phone-top">
+            <img src="assets/logo-mark.svg" alt="" width="26" height="26">
+            <strong>Lots près de vous</strong>
+          </div>
+          <ul class="lots">
+            <li class="lot">
+              <span class="lot-thumb t1" aria-hidden="true"></span>
+              <div>
+                <strong>Parpaings 15×20</strong>
+                <small>120 unités · 2,3 km</small>
+              </div>
+              <span class="tag">−45 %</span>
+            </li>
+            <li class="lot">
+              <span class="lot-thumb t2" aria-hidden="true"></span>
+              <div>
+                <strong>Fers à béton HA10</strong>
+                <small>35 barres · 4,1 km</small>
+              </div>
+              <span class="tag">−38 %</span>
+            </li>
+            <li class="lot">
+              <span class="lot-thumb t3" aria-hidden="true"></span>
+              <div>
+                <strong>Carrelage 60×60</strong>
+                <small>18 m² · 6,8 km</small>
+              </div>
+              <span class="tag">−50 %</span>
+            </li>
+            <li class="lot">
+              <span class="lot-thumb t4" aria-hidden="true"></span>
+              <div>
+                <strong>Laine de verre 100 mm</strong>
+                <small>12 rouleaux · 1,5 km</small>
+              </div>
+              <span class="tag">−40 %</span>
+            </li>
+          </ul>
+          <div class="phone-cta">Retrait ou livraison</div>
+        </div>
+        <p class="visual-note">Aperçu illustratif</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Problème -->
+  <section id="probleme" class="section">
+    <div class="container">
+      <p class="eyebrow">Le constat</p>
+      <h2>Sur les chantiers, trop de matériaux finissent à la benne.</h2>
+      <div class="cards three">
+        <article class="card">
+          <div class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+          </div>
+          <h3>Des déchets qui coûtent cher</h3>
+          <p>L'évacuation des déchets de chantier pèse sur le budget, alors qu'une bonne partie est encore utilisable.</p>
+        </article>
+        <article class="card">
+          <div class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><rect x="3" y="10" width="8" height="5" rx="1"/><rect x="13" y="10" width="8" height="5" rx="1"/><rect x="7" y="16" width="10" height="5" rx="1"/><path d="M8 3v4M16 3v4"/></svg>
+          </div>
+          <h3>Des surplus qui dorment</h3>
+          <p>Matériaux et matériels inutilisés restent stockés et immobilisent de l'argent.</p>
+        </article>
+        <article class="card">
+          <div class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg>
+          </div>
+          <h3>Des prix qui montent</h3>
+          <p>Les matières premières augmentent et l'approvisionnement en matériaux prend du temps.</p>
+        </article>
+      </div>
+      <p class="aside">Aujourd'hui, on se débrouille avec les quincailleries et négoces (du neuf, plus cher), la revente informelle sur les réseaux sociaux, ou la décharge.</p>
+    </div>
+  </section>
+
+  <!-- Fonctionnement -->
+  <section id="fonctionnement" class="section section-tint">
+    <div class="container">
+      <p class="eyebrow">Comment ça marche</p>
+      <h2>Trois étapes, que vous vendiez ou que vous achetiez.</h2>
+
+      <div class="tabs" role="tablist" aria-label="Parcours">
+        <button role="tab" id="tab-vendeur" aria-selected="true" aria-controls="panel-vendeur">Je vends</button>
+        <button role="tab" id="tab-acheteur" aria-selected="false" aria-controls="panel-acheteur" tabindex="-1">J'achète</button>
+      </div>
+
+      <ol class="steps" id="panel-vendeur" role="tabpanel" aria-labelledby="tab-vendeur">
+        <li><span class="num">1</span><h3>Je publie mon lot</h3><p>Je photographie mon lot et je publie l'annonce en 2 minutes.</p></li>
+        <li><span class="num">2</span><h3>Je suis prévenu</h3><p>Je reçois une notification quand le lot est acheté.</p></li>
+        <li><span class="num">3</span><h3>Je suis payé</h3><p>Je remets le lot et je suis payé sous 48 heures.</p></li>
+      </ol>
+
+      <ol class="steps" id="panel-acheteur" role="tabpanel" aria-labelledby="tab-acheteur" hidden>
+        <li><span class="num">1</span><h3>Je cherche</h3><p>Je cherche un matériau près de mon chantier, par catégorie, distance ou prix.</p></li>
+        <li><span class="num">2</span><h3>Je paie en ligne</h3><p>Je paie en ligne et je choisis le retrait sur place ou la livraison.</p></li>
+        <li><span class="num">3</span><h3>Je récupère et je note</h3><p>Je récupère ou je reçois mon lot, puis je note le vendeur.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- Pour qui -->
+  <section id="pour-qui" class="section">
+    <div class="container">
+      <p class="eyebrow">Pour qui</p>
+      <h2>Professionnels et particuliers, des deux côtés.</h2>
+      <div class="cards two">
+        <article class="card card-audience">
+          <h3>Vous vendez</h3>
+          <p class="card-promise">Vos surplus et vos déchets deviennent des revenus, et vos frais d'évacuation baissent.</p>
+          <ul class="checks">
+            <li>Entreprises du BTP et artisans</li>
+            <li>Fournisseurs : fins de série, invendus</li>
+            <li>Particuliers qui ont des matériaux en trop</li>
+          </ul>
+          <p class="card-note"><strong>Pour ouvrir un compte vendeur :</strong> numéro SIRET et extrait Kbis de moins de 3 mois pour un professionnel ; e-mail et téléphone vérifiés et pièce d'identité pour un particulier.</p>
+        </article>
+        <article class="card card-audience card-dark">
+          <h3>Vous achetez</h3>
+          <p class="card-promise">Des matériaux moins chers que le neuf, disponibles tout de suite, près de chez vous.</p>
+          <ul class="checks">
+            <li>Artisans et petites entreprises du BTP</li>
+            <li>Particuliers en autoconstruction ou rénovation</li>
+            <li>Recycleurs</li>
+          </ul>
+          <p class="card-note"><strong>Pour ouvrir un compte acheteur :</strong> numéro SIRET pour un professionnel (facture avec TVA) ; e-mail et téléphone vérifiés pour un particulier.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- Catégories -->
+  <section id="materiaux" class="section section-tint">
+    <div class="container">
+      <p class="eyebrow">Ce qu'on trouve sur ChantierMarket</p>
+      <h2>Sept familles de matériaux et de matériel.</h2>
+      <ul class="categories">
+        <li>Gros œuvre <small>briques, parpaings, ciment, acier</small></li>
+        <li>Bois et charpente</li>
+        <li>Isolation et plâtrerie</li>
+        <li>Carrelage et revêtements</li>
+        <li>Plomberie et électricité</li>
+        <li>Menuiseries</li>
+        <li>Outillage et matériel de chantier</li>
+      </ul>
+      <div class="split">
+        <div class="card compact">
+          <h3>Chaque annonce indique</h3>
+          <p>Un titre, la catégorie, au moins 3 photos, la quantité et l'unité, l'état (neuf, très bon, bon), le prix, l'adresse et la date limite de retrait.</p>
+        </div>
+        <div class="card compact card-warning">
+          <h3>Refusés sur la plateforme</h3>
+          <p>Amiante, peintures et solvants entamés, produits périmés, bouteilles de gaz, matériaux pollués, et matériaux trop endommagés pour être utilisés.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Confiance -->
+  <section id="confiance" class="section">
+    <div class="container">
+      <p class="eyebrow">Acheter et vendre en confiance</p>
+      <h2>Le paiement est protégé jusqu'à la remise du lot.</h2>
+      <div class="cards three">
+        <article class="card compact">
+          <h3>Paiement sécurisé</h3>
+          <p>Par carte bancaire ou virement, via un prestataire de paiement en ligne. L'argent est conservé jusqu'à la remise du lot.</p>
+        </article>
+        <article class="card compact">
+          <h3>Vendeur payé sous 48 h</h3>
+          <p>Le vendeur reçoit son paiement 48 heures après la confirmation de réception par l'acheteur.</p>
+        </article>
+        <article class="card compact">
+          <h3>Réclamation sous 48 h</h3>
+          <p>Lot non conforme à l'annonce ? Signalez-le avec des photos : le paiement est bloqué pendant l'examen, et vous êtes remboursé si le lot n'est pas conforme.</p>
+        </article>
+        <article class="card compact">
+          <h3>Annulation gratuite</h3>
+          <p>Tant que le lot n'est ni retiré ni pris en charge par le transporteur.</p>
+        </article>
+        <article class="card compact">
+          <h3>Vendeurs notés</h3>
+          <p>Note sur 5 et commentaire après chaque vente. Un vendeur sous 3 sur 5 de moyenne après 10 ventes voit son compte suspendu.</p>
+        </article>
+        <article class="card compact">
+          <h3>Droits des particuliers</h3>
+          <p>Achat à un professionnel : 14 jours de rétractation et garantie légale de conformité. L'état de chaque lot est décrit et photographié.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tarifs -->
+  <section id="tarifs" class="section section-tint">
+    <div class="container">
+      <p class="eyebrow">Tarifs</p>
+      <h2>Publier est gratuit. On ne gagne que si vous vendez.</h2>
+      <div class="cards three pricing">
+        <article class="card">
+          <h3>Acheteur</h3>
+          <p class="price">Gratuit</p>
+          <ul class="checks">
+            <li>Accès à tous les lots</li>
+            <li>Paiement sécurisé</li>
+            <li>Livraison en option, selon la distance</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Vendeur</h3>
+          <p class="price">12 % <small>par vente</small></p>
+          <ul class="checks">
+            <li>Publication d'une annonce gratuite</li>
+            <li>Commission de 12 % du prix de vente, payée par le vendeur</li>
+            <li>Paiement sous 48 heures</li>
+          </ul>
+        </article>
+        <article class="card card-featured">
+          <span class="badge">Entreprises</span>
+          <h3>Premium</h3>
+          <p class="price">39 € HT <small>par mois</small></p>
+          <ul class="checks">
+            <li>Annonces mises en avant</li>
+            <li>Publications illimitées</li>
+            <li>Sans engagement, résiliable à tout moment</li>
+          </ul>
+        </article>
+      </div>
+
+      <div id="livraison" class="delivery">
+        <div>
+          <h3>Livraison</h3>
+          <p>Par des transporteurs locaux partenaires, équipés d'utilitaires de 12 à 20 m³. Livraison au pied du véhicule, <strong>sous 24 à 48 heures ouvrées</strong> après le paiement, dans un rayon de <strong>30 km autour de Lorient</strong> au lancement.</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Distance</th><th>Prix</th></tr></thead>
+            <tbody>
+              <tr><td>De 0 à 10 km</td><td>29 € HT</td></tr>
+              <tr><td>De 10 à 20 km</td><td>45 € HT</td></tr>
+              <tr><td>De 20 à 30 km</td><td>59 € HT</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Application -->
+  <section id="application" class="section">
+    <div class="container">
+      <p class="eyebrow">L'application</p>
+      <h2>Tout ce qu'il faut pour vendre et acheter vos matériaux.</h2>
+      <ul class="features">
+        <li>
+          <h3>Compte pro ou particulier</h3>
+          <p>Inscription en quelques minutes, avec vérification adaptée à votre profil.</p>
+        </li>
+        <li>
+          <h3>Annonce avec photos</h3>
+          <p>Publiez un lot en 2 minutes depuis votre téléphone, directement sur le chantier.</p>
+        </li>
+        <li>
+          <h3>Recherche sur carte</h3>
+          <p>Trouvez un matériau par catégorie, distance et prix, et voyez les lots autour de vous.</p>
+        </li>
+        <li>
+          <h3>Alertes matériaux</h3>
+          <p>Enregistrez le matériau que vous cherchez : vous êtes prévenu dès qu'un lot correspondant est publié.</p>
+        </li>
+        <li>
+          <h3>Messagerie intégrée</h3>
+          <p>Posez vos questions au vendeur ou à l'acheteur sans quitter l'application.</p>
+        </li>
+        <li>
+          <h3>Paiement sécurisé</h3>
+          <p>Carte bancaire ou virement, avec un paiement conservé jusqu'à la remise du lot.</p>
+        </li>
+        <li>
+          <h3>Retrait ou livraison</h3>
+          <p>Choisissez au moment de payer : retrait sur place ou livraison sur votre chantier.</p>
+        </li>
+        <li>
+          <h3>Suivi en temps réel</h3>
+          <p>Suivez votre commande et votre livraison, avec un SMS la veille et à l'arrivée du transporteur.</p>
+        </li>
+        <li>
+          <h3>Notes et avis</h3>
+          <p>Notez le vendeur après chaque achat pour une communauté plus fiable.</p>
+        </li>
+        <li class="feature-pro">
+          <h3>Abonnement Premium</h3>
+          <p>Pour les entreprises : annonces mises en avant et publications illimitées, à 39&nbsp;€&nbsp;HT par mois.</p>
+        </li>
+        <li class="feature-pro">
+          <h3>Compteur de déchets évités</h3>
+          <p>Chaque entreprise voit les tonnes de matériaux qu'elle a sauvées de la décharge.</p>
+        </li>
+        <li class="feature-pro">
+          <h3>Enlèvement sur chantier</h3>
+          <p>Nous venons récupérer vos déchets et surplus directement sur le chantier.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- À propos -->
+  <section id="a-propos" class="section section-tint">
+    <div class="container">
+      <p class="eyebrow">À propos</p>
+      <h2>Né en 2026 à Lorient, sur les chantiers.</h2>
+      <div class="about">
+        <p class="about-story">Cinq étudiants en génie civil ont constaté pendant leurs stages que des palettes de matériaux neufs partaient à la benne en fin de chantier, alors que les prix des matières premières augmentaient. ChantierMarket est né de ce constat.</p>
+        <div class="goal">
+          <p class="goal-figure">150 000 €</p>
+          <p>de matériaux remis en circulation : notre objectif pour la première année. Chaque lot vendu est un lot qui ne part pas en décharge.</p>
+        </div>
+      </div>
+      <ul class="team">
+        <li><span class="avatar" aria-hidden="true">A</span><strong>Mamisoa Andy <span class="surname">RATSITOHAINA</span></strong><small>Président</small></li>
+        <li><span class="avatar" aria-hidden="true">D</span><strong>Dimby Mizantenaina <span class="surname">RAKOTONDRABE</span></strong><small>Développeur</small></li>
+        <li><span class="avatar" aria-hidden="true">F</span><strong>Antema Fihobiana Hasimanjaka <span class="surname">RABARIJAONA</span></strong><small>Développeur</small></li>
+        <li><span class="avatar" aria-hidden="true">I</span><strong>Itiavana Felan’Oliva <span class="surname">RASOLOFOSON</span></strong><small>Finances</small></li>
+        <li><span class="avatar" aria-hidden="true">N</span><strong>Nomena Sitraka <span class="surname">RASOANANTOANINA</span></strong><small>Communication</small></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="section">
+    <div class="container container-narrow">
+      <p class="eyebrow">Aide</p>
+      <h2>Questions fréquentes</h2>
+      <div class="faq">
+        <details>
+          <summary>Qui peut vendre sur ChantierMarket ?</summary>
+          <p>Les entreprises du BTP, les fournisseurs et les particuliers.</p>
+        </details>
+        <details>
+          <summary>Comment est fixé le prix ?</summary>
+          <p>Le vendeur fixe son prix. Nous conseillons 30 à 60 % sous le prix du neuf.</p>
+        </details>
+        <details>
+          <summary>Quand le vendeur est-il payé ?</summary>
+          <p>48 heures après la confirmation de réception par l'acheteur.</p>
+        </details>
+        <details>
+          <summary>Que faire si le matériau ne correspond pas à l'annonce ?</summary>
+          <p>Signalez-le sous 48 heures avec des photos : le paiement est bloqué pendant l'examen.</p>
+        </details>
+        <details>
+          <summary>Quels matériaux sont refusés ?</summary>
+          <p>L'amiante, les produits chimiques dangereux et les matériaux endommagés au point d'être inutilisables.</p>
+        </details>
+        <details>
+          <summary>Où livrez-vous ?</summary>
+          <p>Dans un rayon de 30 km autour de Lorient au lancement, sous 24 à 48 heures ouvrées après le paiement.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- Inscription et contact -->
+  <section id="inscription" class="section signup">
+    <div class="container signup-inner">
+      <div>
+        <h2>Lancez-vous.</h2>
+        <p>Publiez vos surplus ou trouvez vos matériaux dès aujourd'hui, autour de Lorient.</p>
+
+        <div id="contact" class="contact">
+          <h3>Nous contacter</h3>
+          <ul class="contact-list">
+            <li><span>E-mail</span><a href="mailto:contact@chantiermarket.fr">contact@chantiermarket.fr</a></li>
+            <li><span>Service client</span><a href="mailto:aide@chantiermarket.fr">aide@chantiermarket.fr</a></li>
+            <li><span>Téléphone</span><a href="tel:+33261914520">02 61 91 45 20</a></li>
+            <li><span>Horaires</span>Du lundi au vendredi, de 8 h 30 à 18 h</li>
+            <li><span>Adresse</span>1 rue Nicolas Appert, 56100 Lorient</li>
+          </ul>
+          <ul class="socials" aria-label="Réseaux sociaux">
+            <li><a href="https://www.facebook.com/chantiermarket" rel="noopener">Facebook</a></li>
+            <li><a href="https://www.instagram.com/chantiermarket" rel="noopener">Instagram</a></li>
+            <li><a href="https://www.tiktok.com/@chantiermarket" rel="noopener">TikTok</a></li>
+            <li><a href="https://www.linkedin.com/company/chantiermarket" rel="noopener">LinkedIn</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="signup-form platform-cta">
+        <h3>La plateforme est ouverte</h3>
+        <p>Créez un compte entreprise ou particulier, ou testez avec un compte de démonstration : publiez un lot, achetez, faites-vous livrer, notez le vendeur.</p>
+        <ul class="platform-list">
+          <li>Achat et vente entre professionnels et particuliers</li>
+          <li>Paiement sécurisé, retrait ou livraison</li>
+          <li>Suivi de commande, réclamations, avis</li>
+        </ul>
+        <a href="app.html#inscription" class="btn btn-light">Créer un compte</a>
+        <a href="app.html" class="btn btn-ghost-light">Essayer avec un compte de démonstration</a>
+        <p class="form-note">Version de simulation : aucun paiement réel n'est effectué.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      <a href="#top" class="brand brand-light" aria-label="ChantierMarket, haut de page">
+        <img src="assets/logo-mark-light.svg" alt="" width="32" height="32">
+        <span class="wordmark"><span>Chantier</span><span class="accent">Market</span></span>
+      </a>
+      <p class="footer-slogan">Valorisez vos déchets, construisez moins cher.</p>
+    </div>
+    <nav aria-label="Informations juridiques">
+      <h2 class="footer-title">Informations</h2>
+      <ul class="footer-links">
+        <li><a href="mentions-legales.html">Mentions légales</a></li>
+        <li><a href="cgu.html">Conditions d'utilisation</a></li>
+        <li><a href="cgv.html">Conditions de vente</a></li>
+        <li><a href="confidentialite.html">Confidentialité</a></li>
+        <li><a href="cookies.html">Cookies</a></li>
+      </ul>
+    </nav>
+    <div>
+      <h2 class="footer-title">Contact</h2>
+      <ul class="footer-links">
+        <li><a href="mailto:contact@chantiermarket.fr">contact@chantiermarket.fr</a></li>
+        <li><a href="tel:+33261914520">02 61 91 45 20</a></li>
+        <li>1 rue Nicolas Appert, 56100 Lorient</li>
+      </ul>
+    </div>
+  </div>
+  <div class="container footer-bottom">
+    <p>© <span id="year">2026</span> ChantierMarket SAS · RCS Lorient 912 345 678</p>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>

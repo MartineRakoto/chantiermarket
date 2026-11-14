@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plateforme — ChantierMarket</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body class="app">
+
+<p class="notice">Simulation : aucun paiement réel, aucune donnée envoyée. Tout est enregistré dans ce navigateur.</p>
+
+<header class="app-header">
+  <div class="container app-header-inner">
+    <a href="index.html" class="brand" aria-label="ChantierMarket, site vitrine">
+      <img src="assets/logo-mark.svg" alt="" width="36" height="36">
+      <span class="wordmark"><span>Chantier</span><span class="accent">Market</span></span>
+    </a>
+
+    <nav class="app-nav" aria-label="Plateforme">
+      <a href="#demarrer" data-route="demarrer">Démarrer</a>
+      <a href="#catalogue" data-route="catalogue">Acheter</a>
+      <a href="#vendre" data-route="vendre">Vendre</a>
+      <a href="#annonces" data-route="annonces">Mes annonces</a>
+      <a href="#commandes" data-route="commandes">Commandes</a>
+      <a href="#messages" data-route="messages">Messages</a>
+      <a href="#alertes" data-route="alertes">Alertes</a>
+      <a href="#compte" data-route="compte">Mon compte</a>
+      <a href="#admin" data-route="admin" id="nav-admin" hidden>Administration</a>
+    </nav>
+
+    <div class="app-tools">
+      <div class="clock" title="Heure de la simulation">
+        <span class="clock-label">Heure simulée</span>
+        <span id="clock">—</span>
+      </div>
+      <button type="button" class="btn btn-small btn-ghost" data-action="advance" data-hours="24" id="advance-24">+24 h</button>
+      <a href="#notifications" class="notif-btn" aria-label="Notifications">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <span id="notif-count" class="notif-count" hidden>0</span>
+      </a>
+      <label class="account-picker" for="account-select">
+        <span class="sr-only">Compte utilisé</span>
+        <select id="account-select"></select>
+      </label>
+    </div>
+  </div>
+</header>
+
+<main id="view" class="container app-main" tabindex="-1"></main>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
