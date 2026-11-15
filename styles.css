@@ -74,6 +74,8 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
+.hero-sim { margin: 16px 0 0; }
+.hero-sim a { color: var(--green-text); font-weight: 700; }
 .credit-thumb { width: 96px; height: 64px; object-fit: cover; border-radius: 8px; max-width: none; }
 
 html { scroll-behavior: smooth; scroll-padding-top: 80px; }

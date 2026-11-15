@@ -91,6 +91,10 @@ body.app { background: var(--page-alt); }
 }
 .app-nav a:hover { background: var(--green-pale); color: var(--green-text); }
 .app-nav a.active { background: var(--green); color: var(--white); }
+.app-nav a.nav-sim { border: 2px dashed var(--green); color: var(--green-text); }
+.app-nav a.nav-sim.active { border-style: solid; color: var(--white); }
+.app-tools .btn { white-space: nowrap; flex: none; }
+.notice a { color: #9FE3BF; font-weight: 700; margin-left: 6px; white-space: nowrap; }
 .app-tools { display: flex; align-items: center; gap: 10px; }
 .clock { display: flex; flex-direction: column; line-height: 1.15; font-size: 0.85rem; font-variant-numeric: tabular-nums; text-align: right; }
 .clock-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
