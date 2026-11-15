@@ -144,10 +144,16 @@
     return `<span class="avatar-sm avatar-${u.type} ${size}" aria-hidden="true">${esc(ini)}</span>`;
   }
 
+  // Photos réelles (Wikimedia Commons, licences libres : voir credits-photos.html)
+  const P = (name) => `assets/photos/${name}.jpg`;
+  const SEED_PHOTOS = { 1: 'parpaings', 2: 'fers', 3: 'carrelage', 4: 'laine', 5: 'bastaings', 6: 'fenetre', 7: 'platre', 8: 'betonniere',
+    9: 'per', 10: 'treillis', 11: 'osb', 12: 'rails', 13: 'dalles', 14: 'tuiles' };
+  const CAT_PHOTOS = ['parpaings', 'bastaings', 'laine', 'carrelage', 'per', 'fenetre', 'betonniere'];
+  const catPhoto = (category) => P(CAT_PHOTOS[Math.max(0, CATEGORIES.indexOf(category))]);
+
   function photo(l, cls) {
-    if (l.photos && l.photos.length) return `<img class="${cls}" src="${l.photos[0]}" alt="">`;
-    const k = Math.max(0, CATEGORIES.indexOf(l.category));
-    return `<div class="${cls} ph ph-${k}" aria-hidden="true"><span>${esc(l.category)}</span></div>`;
+    const src = l.photos && l.photos.length ? l.photos[0] : catPhoto(l.category);
+    return `<img class="${cls}" src="${src}" alt="${esc(l.title)}" loading="lazy">`;
   }
 
   function sellerStats(id) {
@@ -229,6 +235,7 @@
     lot(13, 'u1', 'Dalles de terrasse grès 40×40', 3, 12, 'm²', 'Très bon', 96, 190, 290, 90, 'Dalles posées à sec puis déposées, propres.', 'vendu');
     lot(14, 'u1', 'Tuiles mécaniques terre cuite', 0, 150, 'unités', 'Bon', 75, 180, 450, 30, 'Tuiles de dépose, triées.', 'vendu');
     // Lots à retirer bientôt : la rubrique « Dernière chance », comme les paniers à sauver
+    s.lots.forEach((l) => { if (SEED_PHOTOS[l.id]) { l.photos = [P(SEED_PHOTOS[l.id])]; l.examplePhotos = false; } });
     const soon = { 8: 1, 6: 2, 2: 3, 9: 4 };
     s.lots.forEach((l) => { if (soon[l.id]) l.deadline = t0 + soon[l.id] * D - 2 * H; l.vues = 6 + ((l.id * 37) % 90); });
 
@@ -289,7 +296,11 @@
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const s = JSON.parse(raw);
-        if (s && s.version === 2) return s;
+        if (s && s.version === 2) {
+          // Simulations commencées avant l'ajout des photos : on les ajoute aux lots de démonstration
+          s.lots.forEach((l) => { if (SEED_PHOTOS[l.id] && (!l.photos || !l.photos.length)) { l.photos = [P(SEED_PHOTOS[l.id])]; l.examplePhotos = false; } });
+          return s;
+        }
       }
     } catch (e) { storageOk = false; }
     return seed();
@@ -477,7 +488,7 @@
       </section>
 
       <section class="home-cats" aria-label="Catégories">
-        ${CATEGORIES.map((cat, i) => `<button type="button" class="cat-tile" data-action="cat" data-cat="${esc(cat)}"><span class="cat-ico ph ph-${i}" aria-hidden="true"></span><span>${esc(cat)}<small>${count(cat)} lot${count(cat) > 1 ? 's' : ''}</small></span></button>`).join('')}
+        ${CATEGORIES.map((cat, i) => `<button type="button" class="cat-tile" data-action="cat" data-cat="${esc(cat)}"><img class="cat-ico" src="${P(CAT_PHOTOS[i])}" alt="" loading="lazy"><span>${esc(cat)}<small>${count(cat)} lot${count(cat) > 1 ? 's' : ''}</small></span></button>`).join('')}
       </section>
 
       ${last.length ? `<section class="home-section">
@@ -865,9 +876,9 @@
     const mine = !!u && l.sellerId === u.id;
     const km = dist(l.commune, myCommune());
     if (!mine && !ui.viewed[l.id]) { ui.viewed[l.id] = true; l.vues = (l.vues || 0) + 1; save(); }
-    const gallery = l.photos && l.photos.length
-      ? `<div class="gallery">${l.photos.map((p) => `<img src="${p}" alt="Photo du lot">`).join('')}</div>`
-      : `<div class="gallery">${[0, 1, 2].map(() => photo(l, 'gallery-ph')).join('')}</div><p class="muted small">Photos d'exemple de la simulation.</p>`;
+    const pics = l.photos && l.photos.length ? l.photos : [catPhoto(l.category)];
+    const gallery = `<div class="gallery${pics.length === 1 ? ' gallery-single' : ''}">${pics.slice(0, 3).map((p) => `<img src="${p}" alt="Photo : ${esc(l.title)}">`).join('')}</div>
+      <p class="muted small">${l.photos && l.photos.length ? (SEED_PHOTOS[l.id] ? 'Photo d\'illustration (Wikimedia Commons, voir les <a href="credits-photos.html">crédits photos</a>).' : '') : 'Photo d\'illustration de la catégorie (voir les <a href="credits-photos.html">crédits photos</a>).'}</p>`;
     const thread = u ? state.messages.filter((m) => m.lotId === l.id && ((m.from === u.id && m.to === s.id) || (m.from === s.id && m.to === u.id))) : [];
     const n = daysLeft(l);
     const others = state.lots.filter((x) => x.sellerId === s.id && x.id !== l.id && x.status === 'en-ligne').length;

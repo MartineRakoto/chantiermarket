@@ -576,6 +576,13 @@ a.seller-card:hover { border-color: var(--green); }
 .switch-row input[role="switch"]:focus-visible { outline: 3px solid var(--green-light); outline-offset: 2px; }
 .btn[disabled] { opacity: 0.5; cursor: not-allowed; transform: none; }
 
+/* Photos réelles */
+.gallery-single { grid-template-columns: 1fr; grid-template-rows: 1fr; height: 380px; }
+.gallery-single > :first-child { grid-row: auto; }
+.cat-ico { object-fit: cover; }
+img[src$="carrelage.jpg"] { object-position: 50% 92%; }
+.lot-img, .showcase-img { background: var(--green-pale); }
+
 /* Site vitrine : annonces du moment */
 .section-annonces { padding-block: 64px; }
 .showcase-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px; }
