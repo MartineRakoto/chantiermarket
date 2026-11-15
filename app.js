@@ -5,7 +5,9 @@
 'use strict';
 
 (function () {
-  const KEY = 'chantiermarket-simulation-v1';
+  const KEY = 'chantiermarket-simulation-v2';
+  const SETTINGS_KEY = 'cm-reglages';
+  const DEMO_PWD = 'demo1234';
   const H = 3600e3;
   const D = 24 * H;
   const COMMISSION = 0.12;
@@ -45,7 +47,7 @@
 
   let state;
   let storageOk = true;
-  const ui = { q: '', cat: '', maxKm: '', sort: 'distance', vue: 'liste', commune: '', ordersTab: '' };
+  const ui = { q: '', cat: '', maxKm: '', sort: 'distance', vue: 'liste', commune: '', ordersTab: '', viewed: {}, after: '', loginReason: '', forgot: '', forgotEmail: '', forgotCode: '' };
   let draftPhotos = [];
 
   /* ---------- Outils ---------- */
@@ -72,8 +74,63 @@
   const inZone = (c) => dist(c, 'Lorient') <= 30;
   const feeHT = (km) => (km <= 10 ? 29 : km <= 20 ? 45 : km <= 30 ? 59 : null);
   const user = (id) => state.users.find((u) => u.id === id);
-  const me = () => user(state.current) || state.users[0];
-  const myCommune = () => me().commune || 'Lorient';
+  const me = () => (state.current ? user(state.current) || null : null);
+  const myCommune = () => (me() && me().commune) || 'Lorient';
+  // Empreinte du mot de passe (simulation : les mots de passe ne quittent jamais ce navigateur)
+  const hash = (str) => {
+    let h1 = 0xdeadbeef ^ 7;
+    let h2 = 0x41c6ce57 ^ 7;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+  };
+  const pwdHash = (email, pwd) => hash(`cm:${String(email).toLowerCase()}:${pwd}`);
+  const dayLabel = (t) => {
+    const d = new Date(t);
+    const n = new Date(now());
+    const sameDay = (a, b) => a.toDateString() === b.toDateString();
+    const hm = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    if (sameDay(d, n)) return `Aujourd'hui, ${hm}`;
+    const y = new Date(n);
+    y.setDate(n.getDate() - 1);
+    if (sameDay(d, y)) return `Hier, ${hm}`;
+    return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  };
+  const daysLeft = (l) => Math.ceil((l.deadline - now()) / D);
+  const urgent = (l) => l.status === 'en-ligne' && daysLeft(l) <= 4;
+  const deadlineBadge = (l) => {
+    const n = daysLeft(l);
+    if (l.status !== 'en-ligne') return '';
+    if (n <= 0) return '<span class="chip chip-urgent">Dernier jour</span>';
+    if (n === 1) return '<span class="chip chip-urgent">À retirer avant demain</span>';
+    if (n <= 4) return `<span class="chip chip-urgent">Plus que ${n} jours</span>`;
+    return '';
+  };
+  const isFav = (id) => !!(me() && (me().favs || []).includes(+id));
+
+  /* Réglages d'affichage, propres à ce navigateur */
+  function readSettings() {
+    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function writeSettings(s) {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (e) { /* stockage indisponible : réglage gardé pour cette visite */ }
+    const root = document.documentElement;
+    if (s.theme === 'sombre') root.setAttribute('data-theme', 'dark');
+    else if (s.theme === 'clair') root.setAttribute('data-theme', 'light');
+    else root.removeAttribute('data-theme');
+    if (s.texte === 'grand') root.setAttribute('data-text', 'grand'); else root.removeAttribute('data-text');
+    if (s.animations === 'reduit') root.setAttribute('data-motion', 'reduit'); else root.removeAttribute('data-motion');
+  }
+  const isDark = () => {
+    const t = document.documentElement.getAttribute('data-theme');
+    return t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  };
+  const defaultPrefs = () => ({ notif: { commande: true, message: true, alerte: true, actus: false }, canaux: { email: true, sms: true }, rayon: '', telephone: true });
   const lotById = (id) => state.lots.find((l) => l.id === +id);
   const orderById = (id) => state.orders.find((o) => o.id === +id);
   const typeLabel = (u) => ({ pro: 'Entreprise', particulier: 'Particulier', admin: 'Administration' }[u.type]);
@@ -106,8 +163,11 @@
     return `<span class="stars" aria-hidden="true">${'★'.repeat(Math.round(s.avg))}${'☆'.repeat(5 - Math.round(s.avg))}</span> ${s.avg.toFixed(1).replace('.', ',')}/5 (${s.count} avis)`;
   }
 
-  function notify(userId, text, link = '', at = null) {
-    state.notifs.push({ id: state.next.notif++, userId, text, link, at: at || now(), read: false });
+  // cat : commande, message, alerte, actus, compte (toujours envoyée)
+  function notify(userId, text, link = '', at = null, cat = 'commande') {
+    const u = user(userId);
+    if (u && u.prefs && cat !== 'compte' && u.prefs.notif && u.prefs.notif[cat] === false) return;
+    state.notifs.push({ id: state.next.notif++, userId, text, link, at: at || now(), read: false, cat });
   }
   function addEvent(o, text, at = null) { o.events.push({ at: at || now(), text }); }
 
@@ -116,7 +176,7 @@
     const t0 = Date.now();
     const at = (h) => t0 - h * H;
     const s = {
-      version: 1, offset: 0, current: 'u1',
+      version: 2, offset: 0, current: null,
       next: { lot: 100, order: 1006, msg: 10, notif: 1, alert: 3, req: 2, report: 1 },
       users: [], lots: [], orders: [], messages: [], alerts: [], notifs: [], requests: [], reports: []
     };
@@ -137,9 +197,16 @@
       { id: 'u5', name: 'Marc D.', type: 'particulier', roles: ['vendeur', 'acheteur'], commune: 'Quéven', emailVerified: true, phoneVerified: true, idVerified: false,
         email: 'marc.d@courriel.example', phone: '06 39 98 00 55', address: '3 chemin du Moulin (fictif)',
         about: 'A terminé l\'extension de sa maison et veut revendre ses surplus.' },
-      { id: 'admin', name: 'Équipe ChantierMarket', type: 'admin', roles: [], commune: 'Lorient',
+      { id: 'admin', name: 'Équipe ChantierMarket', type: 'admin', roles: [], commune: 'Lorient', email: 'equipe@chantiermarket.example',
         about: 'Valide les annonces, traite les réclamations et suit l\'activité de la plateforme.' }
     ];
+    const joined = { u1: 400, u2: 200, u3: 320, u4: 45, u5: 30, admin: 500 };
+    s.users.forEach((u) => {
+      u.pwd = pwdHash(u.email, DEMO_PWD);
+      u.createdAt = at(joined[u.id] * 24);
+      u.favs = { u2: [7], u4: [3, 6] }[u.id] || [];
+      u.prefs = defaultPrefs();
+    });
 
     const lot = (id, sellerId, title, cat, q, unit, etat, price, neuf, weight, hAgo, description, status = 'en-ligne') => {
       const seller = s.users.find((u) => u.id === sellerId);
@@ -161,6 +228,9 @@
     lot(12, 'u1', 'Rails et montants métalliques 48 mm', 2, 60, 'unités', 'Neuf', 120, 210, 90, 60, 'Longueur 3 m, en bottes.', 'vendu');
     lot(13, 'u1', 'Dalles de terrasse grès 40×40', 3, 12, 'm²', 'Très bon', 96, 190, 290, 90, 'Dalles posées à sec puis déposées, propres.', 'vendu');
     lot(14, 'u1', 'Tuiles mécaniques terre cuite', 0, 150, 'unités', 'Bon', 75, 180, 450, 30, 'Tuiles de dépose, triées.', 'vendu');
+    // Lots à retirer bientôt : la rubrique « Dernière chance », comme les paniers à sauver
+    const soon = { 8: 1, 6: 2, 2: 3, 9: 4 };
+    s.lots.forEach((l) => { if (soon[l.id]) l.deadline = t0 + soon[l.id] * D - 2 * H; l.vues = 6 + ((l.id * 37) % 90); });
 
     const order = (id, lotId, buyerId, mode, pay, times, status, extra = {}) => {
       const l = s.lots.find((x) => x.id === lotId);
@@ -219,7 +289,7 @@
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const s = JSON.parse(raw);
-        if (s && s.version === 1) return s;
+        if (s && s.version === 2) return s;
       }
     } catch (e) { storageOk = false; }
     return seed();
@@ -305,40 +375,69 @@
   function parseRoute() {
     const h = decodeURIComponent((location.hash || '').slice(1));
     const parts = h.split('-');
-    const name = parts[0] || 'demarrer';
+    const name = parts[0] || 'accueil';
     return { name, args: parts.slice(1) };
   }
 
   function renderHeader(routeName) {
     const u = me();
-    const groups = [['Entreprises', 'pro'], ['Particuliers', 'particulier'], ['Administration', 'admin']];
-    $('#account-select').innerHTML = groups.map(([label, type]) => `<optgroup label="${label}">${state.users.filter((x) => x.type === type)
-      .map((x) => `<option value="${x.id}"${x.id === u.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</optgroup>`).join('')
-      + '<option value="__new">+ Créer un compte</option>';
-    const unread = state.notifs.filter((n) => n.userId === u.id && !n.read).length;
+    const unread = u ? state.notifs.filter((n) => n.userId === u.id && !n.read).length : 0;
     const badge = $('#notif-count');
     badge.textContent = unread;
     badge.hidden = !unread;
+    $('#notif-link').hidden = !u;
     $('#clock').textContent = fmtDate(now());
-    $('#nav-admin').hidden = u.type !== 'admin';
-    const alias = { lot: 'catalogue', commande: 'commandes', inscription: 'compte' };
+    $('#nav-admin').hidden = !u || u.type !== 'admin';
+    $('#theme-toggle').setAttribute('aria-label', isDark() ? 'Passer en mode jour' : 'Passer en mode nuit');
+    $('#theme-toggle').innerHTML = isDark()
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+    $('#account-area').innerHTML = u
+      ? `<details class="account-menu">
+          <summary>${avatar(u)}<span class="account-name">${esc(u.name)}</span></summary>
+          <div class="account-pop">
+            <p class="small muted">Connecté en tant que<br><strong>${esc(u.email || u.name)}</strong></p>
+            <a href="#compte">Mon compte</a>
+            ${u.type !== 'admin' ? '<a href="#annonces">Mes annonces</a><a href="#favoris">Mes favoris</a><a href="#alertes">Mes alertes</a>' : '<a href="#admin">Administration</a>'}
+            <a href="#notifications">Notifications</a>
+            <a href="#parametres">Paramètres</a>
+            <a href="#connexion">Changer de compte</a>
+            <button type="button" data-action="logout">Se déconnecter</button>
+          </div>
+        </details>`
+      : '<a class="btn btn-small" href="#connexion">Se connecter</a>';
+    const alias = { lot: 'catalogue', commande: 'commandes', vendeur: 'catalogue', modifier: 'vendre' };
     document.querySelectorAll('.app-nav a').forEach((a) => {
       a.classList.toggle('active', a.dataset.route === (alias[routeName] || routeName));
     });
   }
 
+  const PROTECTED = {
+    vendre: 'déposer une annonce', annonces: 'voir vos annonces', commandes: 'suivre vos commandes', commande: 'suivre cette commande',
+    messages: 'lire vos messages', alertes: 'gérer vos alertes', notifications: 'voir vos notifications', compte: 'ouvrir votre compte',
+    parametres: 'modifier vos paramètres', favoris: 'retrouver vos favoris', modifier: 'modifier une annonce', admin: 'ouvrir l\'administration'
+  };
+
   function render(keepScroll = false) {
     tick();
     const r = parseRoute();
-    const views = { demarrer: viewStart, catalogue: viewCatalogue, lot: viewLot, vendre: viewSell, annonces: viewMyLots, commandes: viewOrders,
-      commande: viewOrder, messages: viewMessages, alertes: viewAlerts, notifications: viewNotifs, compte: viewAccount, inscription: viewSignup, admin: viewAdmin };
-    const fn = views[r.name] || viewStart;
+    const views = { accueil: viewHome, demarrer: viewStart, catalogue: viewCatalogue, lot: viewLot, vendre: viewSell, annonces: viewMyLots, commandes: viewOrders,
+      commande: viewOrder, messages: viewMessages, alertes: viewAlerts, notifications: viewNotifs, compte: viewAccount, inscription: viewSignup, admin: viewAdmin,
+      connexion: viewLogin, favoris: viewFavs, vendeur: viewSeller, modifier: viewEdit, parametres: viewSettings };
+    let fn = views[r.name] || viewHome;
+    let args = r.args;
+    if (PROTECTED[r.name] && !me()) {
+      ui.after = location.hash;
+      ui.loginReason = PROTECTED[r.name];
+      fn = viewLogin;
+      args = [];
+    }
     const y = window.scrollY;
-    $('#view').innerHTML = fn(...r.args);
+    $('#view').innerHTML = fn(...args);
     renderHeader(r.name);
     if (r.name === 'catalogue') renderResults();
     if (r.name === 'lot') updateBuySummary();
-    if (r.name === 'notifications') {
+    if (r.name === 'notifications' && me()) {
       state.notifs.forEach((n) => { if (n.userId === me().id) n.read = true; });
       save();
       renderHeader(r.name);
@@ -352,6 +451,246 @@
   const pill = (status) => `<span class="pill pill-${STATUS[status][1]}">${STATUS[status][0]}</span>`;
   const roleChips = (u) => u.roles.map((r) => `<span class="chip">${r === 'vendeur' ? 'Vendeur' : 'Acheteur'}</span>`).join(' ');
   const needAccount = (text) => `<section class="panel"><p>${text}</p></section>`;
+
+  /* ---------- Accueil des annonces ---------- */
+  function viewHome() {
+    const u = me();
+    const online = state.lots.filter((l) => l.status === 'en-ligne' && !isSuspended(l.sellerId));
+    const c = myCommune();
+    const last = online.filter(urgent).sort((a, b) => a.deadline - b.deadline);
+    const fresh = online.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 8);
+    const near = online.slice().sort((a, b) => dist(a.commune, c) - dist(b.commune, c)).slice(0, 8);
+    const row = (list) => `<div class="row-scroll">${list.map((l) => lotCard({ l })).join('')}</div>`;
+    const count = (cat) => online.filter((l) => l.category === cat).length;
+    return `
+      <section class="home-hero">
+        <div>
+          <p class="eyebrow">${u ? `Bonjour ${esc(u.type === 'particulier' ? u.name.split(' ')[0] : u.name)}` : 'Matériaux de chantier à petit prix'}</p>
+          <h1>Des matériaux à sauver, près de chez vous.</h1>
+          <p class="lead">${online.length} lots disponibles autour de Lorient, de 30 à 60 % moins chers que le neuf.</p>
+        </div>
+        <form class="home-search" data-form="home-search" role="search">
+          <label for="home-q" class="sr-only">Que cherchez-vous ?</label>
+          <input id="home-q" name="q" type="search" placeholder="Parpaings, carrelage, bétonnière…">
+          <button class="btn">Rechercher</button>
+        </form>
+      </section>
+
+      <section class="home-cats" aria-label="Catégories">
+        ${CATEGORIES.map((cat, i) => `<button type="button" class="cat-tile" data-action="cat" data-cat="${esc(cat)}"><span class="cat-ico ph ph-${i}" aria-hidden="true"></span><span>${esc(cat)}<small>${count(cat)} lot${count(cat) > 1 ? 's' : ''}</small></span></button>`).join('')}
+      </section>
+
+      ${last.length ? `<section class="home-section">
+        <div class="home-section-head"><div><h2>Dernière chance</h2><p class="muted">Ces lots doivent être retirés dans les prochains jours. Après, ils partent à la benne.</p></div><a href="#catalogue" data-action="sort-urgent">Tout voir</a></div>
+        ${row(last)}
+      </section>` : ''}
+
+      <section class="home-section">
+        <div class="home-section-head"><div><h2>Nouveautés</h2><p class="muted">Les derniers lots publiés.</p></div><a href="#catalogue" data-action="sort-recent">Tout voir</a></div>
+        ${row(fresh)}
+      </section>
+
+      <section class="home-section">
+        <div class="home-section-head"><div><h2>Près de ${esc(c)}</h2><p class="muted">${u ? 'Selon la commune de votre compte.' : 'Connectez-vous pour voir les lots autour de chez vous.'}</p></div><a href="#catalogue">Tout voir</a></div>
+        ${row(near)}
+      </section>
+
+      <section class="home-sell">
+        <div><h2>Des surplus sur votre chantier ?</h2><p>Déposez une annonce gratuite en 2 minutes. Vous ne payez que 12 % si le lot est vendu.</p></div>
+        <a class="btn btn-light" href="#vendre">Déposer une annonce</a>
+      </section>`;
+  }
+
+  /* ---------- Connexion ---------- */
+  function viewLogin() {
+    const u = me();
+    const demo = state.users.filter((x) => ['u1', 'u2', 'u3', 'u4', 'u5', 'admin'].includes(x.id));
+    if (ui.forgot) return viewForgot();
+    return `
+      <div class="login-layout">
+        <section class="panel login-panel">
+          <p class="eyebrow">Connexion</p>
+          <h1>${ui.loginReason ? `Connectez-vous pour ${ui.loginReason}` : 'Connectez-vous à ChantierMarket'}</h1>
+          ${u ? `<p class="banner banner-info">Vous êtes connecté en tant que <strong>${esc(u.name)}</strong>. Connectez-vous avec un autre compte pour en changer.</p>` : ''}
+          <form class="form" data-form="login" novalidate>
+            <div class="field"><label for="l-email">E-mail</label><input id="l-email" name="email" type="email" autocomplete="username" required></div>
+            <div class="field"><label for="l-pwd">Mot de passe</label><input id="l-pwd" name="pwd" type="password" autocomplete="current-password" required></div>
+            <p class="form-error" id="login-error" hidden></p>
+            <button class="btn">Se connecter</button>
+          </form>
+          <p class="login-links"><button type="button" class="link-btn" data-action="forgot">Mot de passe oublié ?</button> · <a href="#inscription">Créer un compte</a></p>
+          ${u ? '<button type="button" class="btn btn-small btn-ghost" data-action="logout">Se déconnecter</button>' : ''}
+        </section>
+        <section class="panel demo-panel">
+          <h2 class="h3">Comptes de démonstration</h2>
+          <p class="small">Mot de passe pour tous : <strong>${DEMO_PWD}</strong>. Un clic vous connecte directement.</p>
+          <ul class="demo-list">${demo.map((x) => `<li>${avatar(x)}<div><strong>${esc(x.name)}</strong><span class="small muted">${typeLabel(x)} · ${esc(x.email)}</span></div>
+            <button type="button" class="btn btn-small${x.id === state.current ? ' btn-ghost' : ''}" data-action="switch" data-id="${x.id}">${x.id === state.current ? 'Connecté' : 'Se connecter'}</button></li>`).join('')}</ul>
+          ${state.users.filter((x) => x.id.startsWith('n')).length ? `<p class="small muted">Vos comptes créés pendant la simulation se connectent avec leur e-mail et leur mot de passe.</p>` : ''}
+        </section>
+      </div>`;
+  }
+
+  function viewForgot() {
+    const step = ui.forgot;
+    return `
+      <section class="panel login-panel narrow">
+        <p class="eyebrow">Mot de passe oublié</p>
+        ${step === 'email' ? `<h1>Réinitialiser votre mot de passe</h1>
+          <p>Indiquez l'adresse e-mail de votre compte. Nous vous envoyons un code à 6 chiffres.</p>
+          <form class="form" data-form="forgot-email" novalidate>
+            <div class="field"><label for="fg-email">E-mail</label><input id="fg-email" name="email" type="email" required autocomplete="username"></div>
+            <p class="form-error" id="forgot-error" hidden></p>
+            <button class="btn">Recevoir le code</button>
+          </form>` : `<h1>Choisissez un nouveau mot de passe</h1>
+          <p>Un code a été envoyé à <strong>${esc(ui.forgotEmail)}</strong>. <span class="muted">Simulation : le code est <strong>${ui.forgotCode}</strong>.</span></p>
+          <form class="form" data-form="forgot-reset" novalidate>
+            <div class="field"><label for="fg-code">Code reçu</label><input id="fg-code" name="code" inputmode="numeric" maxlength="6" required></div>
+            <div class="field"><label for="fg-pwd">Nouveau mot de passe (8 caractères minimum)</label><input id="fg-pwd" name="pwd" type="password" autocomplete="new-password" required></div>
+            <p class="form-error" id="forgot-error" hidden></p>
+            <button class="btn">Enregistrer le mot de passe</button>
+          </form>`}
+        <p class="login-links"><button type="button" class="link-btn" data-action="forgot-cancel">Retour à la connexion</button></p>
+      </section>`;
+  }
+
+  /* ---------- Favoris et profil vendeur ---------- */
+  function viewFavs() {
+    const u = me();
+    const favs = (u.favs || []).map(lotById).filter(Boolean);
+    return `
+      <section class="page-head"><p class="eyebrow">Favoris</p><h1>Mes favoris</h1>
+        <p class="lead">Vous êtes prévenu si le prix d'un favori baisse.</p></section>
+      ${favs.length ? `<div class="lot-grid">${favs.map((l) => lotCard({ l })).join('')}</div>`
+        : '<div class="empty"><p>Aucun favori pour l\'instant. Touchez le cœur sur une annonce pour la retrouver ici.</p><a class="btn btn-small" href="#catalogue">Voir les annonces</a></div>'}`;
+  }
+
+  function viewSeller(id) {
+    const s = user(id);
+    if (!s || s.type === 'admin' || s.deleted) return notFound('Ce profil n\'existe pas.');
+    const st = sellerStats(s.id);
+    const lots = state.lots.filter((l) => l.sellerId === s.id && l.status === 'en-ligne').sort((a, b) => b.createdAt - a.createdAt);
+    const reviews = state.orders.filter((o) => o.sellerId === s.id && o.rating).sort((a, b) => b.rating.at - a.rating.at);
+    return `
+      <section class="seller-head">
+        ${avatar(s, 'avatar-lg')}
+        <div>
+          <p class="eyebrow">${typeLabel(s)}</p>
+          <h1>${esc(s.name)}</h1>
+          <p class="muted">${esc(s.commune)} · Membre depuis ${new Date(s.createdAt || now()).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} · ${s.type === 'pro' ? 'SIRET vérifié' : 'Identité vérifiée'}${s.premium ? ' · <span class="chip chip-sponso">Premium</span>' : ''}</p>
+          <p>${ratingText(s.id)} · ${st.sales} vente${st.sales > 1 ? 's' : ''}</p>
+          ${s.about ? `<p class="prose">${esc(s.about)}</p>` : ''}
+        </div>
+      </section>
+      <h2 class="section-title">Annonces en ligne (${lots.length})</h2>
+      ${lots.length ? `<div class="lot-grid">${lots.map((l) => lotCard({ l })).join('')}</div>` : '<p class="muted">Aucune annonce en ligne.</p>'}
+      <h2 class="section-title">Avis des acheteurs (${reviews.length})</h2>
+      ${reviews.length ? `<ul class="reviews">${reviews.map((o) => `<li><p><span class="stars">${'★'.repeat(o.rating.stars)}${'☆'.repeat(5 - o.rating.stars)}</span> <strong>${esc(user(o.buyerId).name)}</strong> <span class="muted small">· ${fmtDay(o.rating.at)} · ${esc(lotById(o.lotId).title)}</span></p><p>${esc(o.rating.comment) || '<span class="muted">Pas de commentaire.</span>'}</p></li>`).join('')}</ul>` : '<p class="muted">Pas encore d\'avis.</p>'}`;
+  }
+
+  function viewEdit(id) {
+    const l = lotById(id);
+    const u = me();
+    if (!l) return notFound('Cette annonce n\'existe pas.');
+    if (l.sellerId !== u.id) return needAccount('Seul le vendeur peut modifier cette annonce.');
+    if (l.status === 'vendu') return needAccount('Ce lot est vendu : l\'annonce ne peut plus être modifiée.');
+    const active = state.lots.filter((x) => x.sellerId === u.id && x.status === 'en-ligne').length;
+    return lotForm(l, active);
+  }
+
+  /* ---------- Paramètres ---------- */
+  function viewSettings() {
+    const u = me();
+    const s = readSettings();
+    const p = u.prefs || defaultPrefs();
+    const radio = (name, val, label, cur, hint = '') => `<label class="option"><input type="radio" name="${name}" value="${val}"${cur === val ? ' checked' : ''} data-setting="${name}"><span><strong>${label}</strong>${hint ? `<br><small>${hint}</small>` : ''}</span></label>`;
+    const toggle = (name, label, on, hint = '') => `<label class="switch-row"><span><strong>${label}</strong>${hint ? `<br><small class="muted">${hint}</small>` : ''}</span><input type="checkbox" role="switch" name="${name}" data-pref="${name}"${on ? ' checked' : ''}></label>`;
+    const ongoing = state.orders.some((o) => (o.buyerId === u.id || o.sellerId === u.id) && ['payee', 'transport', 'livree', 'recue', 'litige'].includes(o.status));
+    return `
+      <section class="page-head"><p class="eyebrow">Paramètres</p><h1>Paramètres</h1></section>
+      <div class="settings">
+        <nav class="settings-nav" aria-label="Sections des paramètres">
+          <a href="#parametres" data-action="scroll-to" data-target="set-affichage">Affichage</a>
+          <a href="#parametres" data-action="scroll-to" data-target="set-notifs">Notifications</a>
+          <a href="#parametres" data-action="scroll-to" data-target="set-recherche">Recherche</a>
+          <a href="#parametres" data-action="scroll-to" data-target="set-confid">Confidentialité</a>
+          <a href="#parametres" data-action="scroll-to" data-target="set-securite">Sécurité</a>
+          <a href="#parametres" data-action="scroll-to" data-target="set-compte">Compte</a>
+        </nav>
+        <div class="settings-body">
+          <section class="panel" id="set-affichage">
+            <h2 class="h3">Affichage</h2>
+            <p class="small muted">Ces réglages s'appliquent à tout le site, dans ce navigateur.</p>
+            <fieldset class="setting-group"><legend>Thème</legend><div class="option-row">
+              ${radio('theme', 'systeme', 'Automatique', s.theme || 'systeme', 'Suit le réglage de votre appareil')}
+              ${radio('theme', 'clair', 'Mode jour', s.theme || 'systeme')}
+              ${radio('theme', 'sombre', 'Mode nuit', s.theme || 'systeme')}
+            </div></fieldset>
+            <fieldset class="setting-group"><legend>Taille du texte</legend><div class="option-row">
+              ${radio('texte', 'normal', 'Normale', s.texte || 'normal')}
+              ${radio('texte', 'grand', 'Grande', s.texte || 'normal')}
+            </div></fieldset>
+            <fieldset class="setting-group"><legend>Animations</legend><div class="option-row">
+              ${radio('animations', 'normal', 'Normales', s.animations || 'normal')}
+              ${radio('animations', 'reduit', 'Réduites', s.animations || 'normal', 'Moins de mouvements à l\'écran')}
+            </div></fieldset>
+          </section>
+
+          <section class="panel" id="set-notifs">
+            <h2 class="h3">Notifications</h2>
+            <h3 class="h4">Ce que vous recevez</h3>
+            ${toggle('notif.commande', 'Commandes et livraisons', p.notif.commande, 'Paiement, prise en charge, livraison, versement')}
+            ${toggle('notif.message', 'Messages', p.notif.message, 'Quand un acheteur ou un vendeur vous écrit')}
+            ${toggle('notif.alerte', 'Alertes et favoris', p.notif.alerte, 'Nouveau lot correspondant à une alerte, baisse de prix d\'un favori')}
+            ${toggle('notif.actus', 'Actualités et offres de ChantierMarket', p.notif.actus, 'Lettre d\'information, une fois par mois au plus')}
+            <h3 class="h4">Comment vous les recevez</h3>
+            ${toggle('canaux.email', 'Par e-mail', p.canaux.email, esc(u.email || ''))}
+            ${toggle('canaux.sms', 'Par SMS', p.canaux.sms, esc(u.phone || ''))}
+            <p class="small muted">Les messages importants sur votre compte et vos paiements sont toujours envoyés.</p>
+          </section>
+
+          <section class="panel" id="set-recherche">
+            <h2 class="h3">Recherche</h2>
+            <div class="form-grid">
+              <div class="field"><label for="set-rayon">Distance par défaut</label>
+                <select id="set-rayon" data-pref="rayon">${[['', 'Toutes'], ['10', 'Moins de 10 km'], ['20', 'Moins de 20 km'], ['30', 'Moins de 30 km']].map(([v, t]) => `<option value="${v}"${(p.rayon || '') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
+              <div class="field"><label for="set-commune">Votre commune</label>
+                <select id="set-commune" data-pref="commune">${Object.keys(COMMUNES).map((c) => `<option${c === u.commune ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
+            </div>
+          </section>
+
+          <section class="panel" id="set-confid">
+            <h2 class="h3">Confidentialité</h2>
+            ${toggle('telephone', 'Montrer mon numéro après une commande', p.telephone !== false, 'Sinon, l\'autre partie vous contacte par la messagerie')}
+            <p class="small"><a href="confidentialite.html">Politique de confidentialité</a> · <a href="cookies.html">Cookies</a></p>
+          </section>
+
+          <section class="panel" id="set-securite">
+            <h2 class="h3">Sécurité</h2>
+            <form class="form" data-form="password" novalidate>
+              <div class="field"><label for="pw-old">Mot de passe actuel</label><input id="pw-old" name="old" type="password" autocomplete="current-password"></div>
+              <div class="form-grid">
+                <div class="field"><label for="pw-new">Nouveau mot de passe</label><input id="pw-new" name="pwd" type="password" autocomplete="new-password"><p class="hint">8 caractères minimum.</p></div>
+                <div class="field"><label for="pw-new2">Confirmation</label><input id="pw-new2" name="pwd2" type="password" autocomplete="new-password"></div>
+              </div>
+              <p class="form-error" id="password-error" hidden></p>
+              <button class="btn btn-small">Changer le mot de passe</button>
+            </form>
+          </section>
+
+          <section class="panel" id="set-compte">
+            <h2 class="h3">Compte</h2>
+            <div class="btn-group">
+              <button type="button" class="btn btn-small btn-ghost" data-action="logout">Se déconnecter</button>
+              ${u.type !== 'admin' ? (ongoing
+                ? '<button type="button" class="btn btn-small btn-danger" disabled>Supprimer mon compte</button>'
+                : '<button type="button" class="btn btn-small btn-danger" data-action="delete-account" data-confirm="Confirmer : supprimer définitivement">Supprimer mon compte</button>') : ''}
+            </div>
+            ${u.type !== 'admin' ? `<p class="small muted">${ongoing ? 'Vous avez des commandes en cours : terminez-les avant de supprimer votre compte.' : 'La suppression retire vos annonces et efface vos informations personnelles. Les factures sont gardées 10 ans, comme la loi l\'exige.'}</p>` : ''}
+          </section>
+        </div>
+      </div>`;
+  }
 
   /* ---------- Démarrer ---------- */
   function viewStart() {
@@ -367,7 +706,7 @@
       <section class="page-head">
         <p class="eyebrow">Simulation</p>
         <h1>Testez ChantierMarket de bout en bout</h1>
-        <p class="lead">Vous êtes connecté en tant que <strong>${esc(u.name)}</strong> (${typeLabel(u).toLowerCase()}). Changez de compte avec le menu en haut à droite pour jouer l'autre partie de la transaction. Le bouton <strong>+24 h</strong> fait avancer le temps : livraisons, versements et délais se déclenchent comme sur la vraie plateforme.</p>
+        <p class="lead">${u ? `Vous êtes connecté en tant que <strong>${esc(u.name)}</strong> (${typeLabel(u).toLowerCase()}).` : 'Vous n\'êtes pas connecté.'} Choisissez un scénario : vous êtes connecté au bon compte. Pour jouer l'autre partie de la transaction, utilisez « Changer de compte » dans le menu du compte. Tous les comptes de démonstration ont le mot de passe <strong>${DEMO_PWD}</strong>. Le bouton <strong>+24 h</strong> fait avancer le temps : livraisons, versements et délais se déclenchent comme sur la vraie plateforme.</p>
       </section>
 
       <h2 class="section-title">Scénarios</h2>
@@ -416,7 +755,8 @@
       distance: (a, b) => a.km - b.km || b.l.createdAt - a.l.createdAt,
       'prix-croissant': (a, b) => a.l.price - b.l.price,
       'prix-decroissant': (a, b) => b.l.price - a.l.price,
-      recent: (a, b) => b.l.createdAt - a.l.createdAt
+      recent: (a, b) => b.l.createdAt - a.l.createdAt,
+      urgent: (a, b) => a.l.deadline - b.l.deadline
     }[ui.sort];
     return list.sort((a, b) => (b.sp - a.sp) || cmp(a, b));
   }
@@ -438,7 +778,7 @@
         <div class="field-inline grow"><label for="f-q">Recherche</label><input id="f-q" type="search" value="${esc(ui.q)}" placeholder="Parpaing, carrelage, bétonnière…"></div>
         <div class="field-inline"><label for="f-cat">Catégorie</label><select id="f-cat">${opt('', 'Toutes', ui.cat)}${CATEGORIES.map((c) => opt(c, c, ui.cat)).join('')}</select></div>
         <div class="field-inline"><label for="f-km">Distance</label><select id="f-km">${opt('', 'Toutes', ui.maxKm)}${opt('10', 'Moins de 10 km', ui.maxKm)}${opt('20', 'Moins de 20 km', ui.maxKm)}${opt('30', 'Moins de 30 km', ui.maxKm)}</select></div>
-        <div class="field-inline"><label for="f-sort">Trier par</label><select id="f-sort">${opt('distance', 'Distance', ui.sort)}${opt('prix-croissant', 'Prix croissant', ui.sort)}${opt('prix-decroissant', 'Prix décroissant', ui.sort)}${opt('recent', 'Plus récents', ui.sort)}</select></div>
+        <div class="field-inline"><label for="f-sort">Trier par</label><select id="f-sort">${opt('distance', 'Distance', ui.sort)}${opt('prix-croissant', 'Prix croissant', ui.sort)}${opt('prix-decroissant', 'Prix décroissant', ui.sort)}${opt('recent', 'Plus récents', ui.sort)}${opt('urgent', 'À retirer en premier', ui.sort)}</select></div>
       </form>
       <div id="results"></div>
       <p class="muted small">Classement par défaut : distance, puis date de publication. Les annonces des abonnés Premium apparaissent en tête avec la mention « Sponsorisé ».</p>`;
@@ -455,18 +795,31 @@
       : '<div class="empty"><p>Aucun lot ne correspond à votre recherche.</p><p class="muted">Créez une alerte pour être prévenu dès qu\'un lot correspondant est publié.</p><a class="btn btn-small" href="#alertes">Créer une alerte</a></div>');
   }
 
+  function favButton(l) {
+    const on = isFav(l.id);
+    return `<button type="button" class="fav-btn${on ? ' is-on' : ''}" data-action="fav" data-id="${l.id}" aria-pressed="${on}" aria-label="${on ? 'Retirer des favoris' : 'Ajouter aux favoris'} : ${esc(l.title)}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.5-9.3C1.1 8.3 3.3 5 6.7 5c2 0 3.6 1.1 4.3 2.6h2C13.7 6.1 15.3 5 17.3 5c3.4 0 5.6 3.3 4.2 6.7C19.5 16.4 12 21 12 21z"/></svg></button>`;
+  }
+
   function lotCard({ l, km, sp }) {
     const s = user(l.sellerId);
-    return `<a class="lot-card" href="#lot-${l.id}">
-      ${photo(l, 'lot-img')}
-      <div class="lot-body">
-        <div class="tags">${sp ? '<span class="chip chip-sponso">Sponsorisé</span>' : ''}<span class="chip">${esc(l.etat)}</span>${l.sellerId === state.current ? '<span class="chip chip-mine">Votre annonce</span>' : ''}</div>
-        <h3>${esc(l.title)}</h3>
-        <p class="muted small">${esc(qty(l))} · ${esc(l.commune)} · ${String(km).replace('.', ',')} km</p>
-        <p class="lot-price"><strong>${money(l.price)}</strong>${l.neuf ? ` <span class="discount">−${discount(l)} % sur le neuf</span>` : ''}</p>
-        <p class="muted small">${esc(s.name)} · ${typeLabel(s)}</p>
-      </div>
-    </a>`;
+    if (km === undefined) km = dist(l.commune, myCommune());
+    if (sp === undefined) sp = isPremium(l.sellerId);
+    const gone = l.status !== 'en-ligne';
+    return `<article class="lot-card${gone ? ' is-gone' : ''}">
+      <a class="lot-link" href="#lot-${l.id}">
+        <div class="lot-media">${photo(l, 'lot-img')}${gone ? `<span class="lot-gone">${l.status === 'vendu' ? 'Vendu' : 'Retiré'}</span>` : ''}</div>
+        <div class="lot-body">
+          <div class="tags">${sp ? '<span class="chip chip-sponso">Sponsorisé</span>' : ''}${deadlineBadge(l)}<span class="chip">${esc(l.etat)}</span>${l.sellerId === state.current ? '<span class="chip chip-mine">Votre annonce</span>' : ''}</div>
+          <h3>${esc(l.title)}</h3>
+          <p class="lot-price"><strong>${money(l.price)}</strong>${l.neuf ? ` <span class="discount">−${discount(l)} %</span>` : ''}</p>
+          <p class="muted small">${esc(qty(l))} · ${esc(l.commune)} · ${String(km).replace('.', ',')} km</p>
+          <p class="muted small">${esc(s.name)} · ${typeLabel(s)}</p>
+          <p class="muted small">${dayLabel(l.createdAt)}</p>
+        </div>
+      </a>
+      ${l.sellerId !== state.current ? favButton(l) : ''}
+    </article>`;
   }
 
   function mapView(list) {
@@ -509,41 +862,53 @@
     if (!l) return notFound('Cette annonce n\'existe pas.');
     const s = user(l.sellerId);
     const u = me();
-    const mine = l.sellerId === u.id;
+    const mine = !!u && l.sellerId === u.id;
     const km = dist(l.commune, myCommune());
+    if (!mine && !ui.viewed[l.id]) { ui.viewed[l.id] = true; l.vues = (l.vues || 0) + 1; save(); }
     const gallery = l.photos && l.photos.length
       ? `<div class="gallery">${l.photos.map((p) => `<img src="${p}" alt="Photo du lot">`).join('')}</div>`
       : `<div class="gallery">${[0, 1, 2].map(() => photo(l, 'gallery-ph')).join('')}</div><p class="muted small">Photos d'exemple de la simulation.</p>`;
-    const thread = state.messages.filter((m) => m.lotId === l.id && ((m.from === u.id && m.to === s.id) || (m.from === s.id && m.to === u.id)));
+    const thread = u ? state.messages.filter((m) => m.lotId === l.id && ((m.from === u.id && m.to === s.id) || (m.from === s.id && m.to === u.id))) : [];
+    const n = daysLeft(l);
+    const others = state.lots.filter((x) => x.sellerId === s.id && x.id !== l.id && x.status === 'en-ligne').length;
     return `
       <p class="crumbs"><a href="#catalogue">← Tous les lots</a></p>
       <div class="lot-layout">
         <div class="lot-main">
           ${gallery}
-          <div class="tags">${isPremium(s.id) ? '<span class="chip chip-sponso">Sponsorisé</span>' : ''}<span class="chip">${esc(l.category)}</span><span class="chip">État : ${esc(l.etat)}</span></div>
+          <div class="tags">${isPremium(s.id) ? '<span class="chip chip-sponso">Sponsorisé</span>' : ''}${deadlineBadge(l)}<span class="chip">${esc(l.category)}</span><span class="chip">État : ${esc(l.etat)}</span></div>
           <h1>${esc(l.title)}</h1>
           <p class="lot-price big"><strong>${money(l.price)}</strong>${l.neuf ? ` <span class="discount">−${discount(l)} % sur le neuf (${money(l.neuf)})</span>` : ''}</p>
+          <div class="lot-actions">
+            ${!mine ? `<button type="button" class="btn btn-small btn-ghost" data-action="fav" data-id="${l.id}" aria-pressed="${isFav(l.id)}">${isFav(l.id) ? '♥ Dans vos favoris' : '♡ Ajouter aux favoris'}</button>` : ''}
+            <button type="button" class="btn btn-small btn-ghost" data-action="share" data-id="${l.id}">Partager l'annonce</button>
+            ${mine ? `<a class="btn btn-small" href="#modifier-${l.id}">Modifier l'annonce</a>` : ''}
+            <span class="muted small">Publiée ${dayLabel(l.createdAt).toLowerCase()} · ${l.vues || 0} vue${(l.vues || 0) > 1 ? 's' : ''}</span>
+          </div>
+          <p class="share-box" id="share-box" hidden></p>
           <dl class="specs">
             <div><dt>Quantité</dt><dd>${esc(qty(l))}</dd></div>
             <div><dt>Poids estimé</dt><dd>${l.weight ? `${l.weight.toLocaleString('fr-FR')} kg` : 'Non indiqué'}</dd></div>
             <div><dt>Retrait</dt><dd>${esc(l.address)}, ${esc(l.commune)}</dd></div>
-            <div><dt>À retirer avant le</dt><dd>${fmtDay(l.deadline)}</dd></div>
+            <div><dt>À retirer avant le</dt><dd>${fmtDay(l.deadline)}${l.status === 'en-ligne' ? `<br><small class="${n <= 4 ? 'urgent-text' : 'muted'}">${n <= 0 ? 'Dernier jour' : n === 1 ? 'Demain' : `Dans ${n} jours`}</small>` : ''}</dd></div>
             <div><dt>Distance</dt><dd>${String(km).replace('.', ',')} km de ${esc(myCommune())}</dd></div>
             <div><dt>Publié</dt><dd>${since(l.createdAt)}</dd></div>
           </dl>
           <h2 class="h3">Description</h2>
           <p class="prose">${esc(l.description) || '<span class="muted">Pas de description.</span>'}</p>
 
-          <section class="seller-card">
+          <a class="seller-card" href="#vendeur-${s.id}">
             ${avatar(s)}
             <div>
               <h2 class="h3">${esc(s.name)}</h2>
               <p class="muted small">${typeLabel(s)}${s.type === 'pro' ? ' · SIRET vérifié' : ' · Identité vérifiée'} · ${esc(s.commune)}</p>
               <p class="small">${ratingText(s.id)}</p>
+              <p class="small seller-more">Voir le profil${others ? ` et ses ${others} autre${others > 1 ? 's' : ''} annonce${others > 1 ? 's' : ''}` : ''} →</p>
             </div>
-          </section>
+          </a>
 
-          ${!mine && u.type !== 'admin' && l.status === 'en-ligne' ? `
+          ${!u && l.status === 'en-ligne' ? `<section class="panel"><h2 class="h3">Une question sur ce lot ?</h2><p>Connectez-vous pour contacter le vendeur.</p><a class="btn btn-small" href="#connexion">Se connecter</a></section>` : ''}
+          ${u && !mine && u.type !== 'admin' && l.status === 'en-ligne' ? `
           <section class="panel">
             <h2 class="h3">Poser une question au vendeur</h2>
             ${thread.length ? `<div class="thread">${thread.map(msgBubble).join('')}</div>` : ''}
@@ -573,12 +938,23 @@
   function buyPanel(l, km) {
     const u = me();
     const s = user(l.sellerId);
+    if (!u) {
+      return l.status === 'en-ligne'
+        ? `<div class="buy-box"><h2 class="h3">Acheter ce lot</h2><p class="lot-price"><strong>${money(l.price)}</strong></p>
+          <p>Retrait sur place gratuit, ou livraison sur votre chantier (${feeHT(km) ? `${money(feeHT(km))} HT depuis ${esc(myCommune())}` : 'selon la distance'}).</p>
+          <a class="btn btn-block" href="#connexion" data-action="remember" data-after="#lot-${l.id}">Se connecter pour acheter</a>
+          <a class="btn btn-block btn-ghost" href="#inscription">Créer un compte</a></div>`
+        : `<div class="buy-box"><h2 class="h3">Lot indisponible</h2><p>${l.status === 'vendu' ? 'Ce lot a été vendu.' : 'Ce lot a été retiré de la vente.'}</p></div>`;
+    }
     if (l.status !== 'en-ligne') {
       const o = state.orders.find((x) => x.lotId === l.id && (x.buyerId === u.id || x.sellerId === u.id || u.type === 'admin'));
       return `<div class="buy-box"><h2 class="h3">Lot indisponible</h2><p>${l.status === 'vendu' ? 'Ce lot a été vendu.' : 'Ce lot a été retiré de la vente.'}</p>${o ? `<a class="btn btn-small" href="#commande-${o.id}">Voir la commande CM-${o.id}</a>` : ''}</div>`;
     }
     if (l.sellerId === u.id) {
+      const favCount = state.users.filter((x) => (x.favs || []).includes(l.id)).length;
       return `<div class="buy-box"><h2 class="h3">C'est votre annonce</h2><p>Elle est en ligne. Vous serez prévenu dès qu'un acheteur la commande.</p>
+        <p class="small muted">${l.vues || 0} vue${(l.vues || 0) > 1 ? 's' : ''} · ${favCount} personne${favCount > 1 ? 's l\'ont' : ' l\'a'} mise en favori</p>
+        <a class="btn btn-small" href="#modifier-${l.id}">Modifier l'annonce</a>
         <button class="btn btn-small btn-ghost" data-action="withdraw" data-id="${l.id}" data-confirm="Confirmer le retrait de l'annonce">Retirer l'annonce</button></div>`;
     }
     if (u.type === 'admin') {
@@ -658,38 +1034,48 @@
         <section class="panel"><p>Vous avez ${active} annonces en ligne. Sans abonnement, la limite est de ${FREE_LIMIT} annonces actives.</p>
         ${u.type === 'pro' ? `<p>Passez à Premium pour publier sans limite et mettre vos annonces en avant (${PREMIUM_HT} € HT par mois, sans engagement).</p><a class="btn btn-small" href="#compte">Voir l'abonnement Premium</a>` : '<p>Retirez une annonce ou attendez qu\'un lot soit vendu.</p>'}</section>`;
     }
-    const deadline = new Date(now() + 21 * D).toISOString().slice(0, 10);
+    return lotForm(null, active);
+  }
+
+  function lotForm(l, active) {
+    const u = me();
+    const v = l || { title: '', category: CATEGORIES[0], etat: ETATS[0], qty: 1, unit: UNITS[0], price: '', neuf: '', weight: '',
+      commune: u.commune, address: u.address || '', deadline: now() + 21 * D, description: '' };
+    const deadline = new Date(v.deadline).toISOString().slice(0, 10);
     const opts = (list, cur) => list.map((x) => `<option${x === cur ? ' selected' : ''}>${esc(x)}</option>`).join('');
+    const existing = l ? (l.photos || []).length : 0;
     return `
-      <section class="page-head"><p class="eyebrow">Vendre</p><h1>Publier une annonce</h1>
-        <p class="lead">Quelques photos, la quantité, un prix et l'adresse de retrait : votre lot est en ligne en 2 minutes.</p></section>
-      <form class="form panel" data-form="publish" novalidate>
+      ${l ? `<p class="crumbs"><a href="#lot-${l.id}">← Retour à l'annonce</a></p>` : ''}
+      <section class="page-head"><p class="eyebrow">Vendre</p><h1>${l ? 'Modifier l\'annonce' : 'Déposer une annonce'}</h1>
+        <p class="lead">${l ? 'Si vous baissez le prix, les acheteurs qui ont mis ce lot en favori sont prévenus.' : 'Quelques photos, la quantité, un prix et l\'adresse de retrait : votre lot est en ligne en 2 minutes.'}</p></section>
+      <form class="form panel" data-form="publish"${l ? ` data-id="${l.id}"` : ''} novalidate>
         <div class="form-grid">
-          <div class="field span-2"><label for="p-title">Titre</label><input id="p-title" name="title" required maxlength="80" placeholder="Ex. : Parpaings creux 20×20×50"></div>
-          <div class="field"><label for="p-cat">Catégorie</label><select id="p-cat" name="category">${opts(CATEGORIES)}</select></div>
-          <div class="field"><label for="p-etat">État</label><select id="p-etat" name="etat">${opts(ETATS)}</select></div>
-          <div class="field"><label for="p-qty">Quantité</label><input id="p-qty" name="qty" type="number" min="1" step="any" required value="1"></div>
-          <div class="field"><label for="p-unit">Unité</label><select id="p-unit" name="unit">${opts(UNITS)}</select></div>
-          <div class="field"><label for="p-price">Prix de vente (€${u.type === 'pro' ? ' TTC' : ''})</label><input id="p-price" name="price" type="number" min="1" step="0.01" required></div>
-          <div class="field"><label for="p-neuf">Prix du neuf (€, facultatif)</label><input id="p-neuf" name="neuf" type="number" min="1" step="0.01"><p class="hint" id="price-advice">Nous conseillons un prix 30 à 60 % sous le prix du neuf.</p></div>
-          <div class="field"><label for="p-weight">Poids estimé (kg, facultatif)</label><input id="p-weight" name="weight" type="number" min="0" step="1"><p class="hint">Sert au compteur de déchets évités.</p></div>
-          <div class="field"><label for="p-commune">Commune de retrait</label><select id="p-commune" name="commune">${opts(Object.keys(COMMUNES), u.commune)}</select></div>
-          <div class="field span-2"><label for="p-address">Adresse de retrait</label><input id="p-address" name="address" required value="${esc(u.address || '')}"></div>
+          <div class="field span-2"><label for="p-title">Titre</label><input id="p-title" name="title" required maxlength="80" placeholder="Ex. : Parpaings creux 20×20×50" value="${esc(v.title)}"></div>
+          <div class="field"><label for="p-cat">Catégorie</label><select id="p-cat" name="category">${opts(CATEGORIES, v.category)}</select></div>
+          <div class="field"><label for="p-etat">État</label><select id="p-etat" name="etat">${opts(ETATS, v.etat)}</select></div>
+          <div class="field"><label for="p-qty">Quantité</label><input id="p-qty" name="qty" type="number" min="1" step="any" required value="${v.qty}"></div>
+          <div class="field"><label for="p-unit">Unité</label><select id="p-unit" name="unit">${opts(UNITS, v.unit)}</select></div>
+          <div class="field"><label for="p-price">Prix de vente (€${u.type === 'pro' ? ' TTC' : ''})</label><input id="p-price" name="price" type="number" min="1" step="0.01" required value="${v.price}"></div>
+          <div class="field"><label for="p-neuf">Prix du neuf (€, facultatif)</label><input id="p-neuf" name="neuf" type="number" min="1" step="0.01" value="${v.neuf || ''}"><p class="hint" id="price-advice">Nous conseillons un prix 30 à 60 % sous le prix du neuf.</p></div>
+          <div class="field"><label for="p-weight">Poids estimé (kg, facultatif)</label><input id="p-weight" name="weight" type="number" min="0" step="1" value="${v.weight || ''}"><p class="hint">Sert au compteur de déchets évités.</p></div>
+          <div class="field"><label for="p-commune">Commune de retrait</label><select id="p-commune" name="commune">${opts(Object.keys(COMMUNES), v.commune)}</select></div>
+          <div class="field span-2"><label for="p-address">Adresse de retrait</label><input id="p-address" name="address" required value="${esc(v.address)}"></div>
           <div class="field"><label for="p-deadline">Date limite de retrait</label><input id="p-deadline" name="deadline" type="date" required value="${deadline}"></div>
-          <div class="field span-2"><label for="p-desc">Description</label><textarea id="p-desc" name="description" rows="3" placeholder="Origine du lot, conditionnement, défauts visibles…"></textarea></div>
+          <div class="field span-2"><label for="p-desc">Description</label><textarea id="p-desc" name="description" rows="3" placeholder="Origine du lot, conditionnement, défauts visibles…">${esc(v.description)}</textarea></div>
           <div class="field span-2">
             <label for="p-photos">Photos (3 au minimum)</label>
             <input id="p-photos" type="file" accept="image/*" multiple>
+            ${existing ? `<p class="hint">${existing} photo${existing > 1 ? 's' : ''} actuelle${existing > 1 ? 's' : ''} : elles sont gardées si vous n'en ajoutez pas.</p>` : ''}
             <div id="photo-preview" class="photo-preview">${draftPhotos.map((p) => `<img src="${p}" alt="">`).join('')}</div>
-            <label class="check"><input type="checkbox" name="examplePhotos" id="p-example"> Utiliser des photos d'exemple (simulation)</label>
+            <label class="check"><input type="checkbox" name="examplePhotos" id="p-example"${l && l.examplePhotos ? ' checked' : ''}> Utiliser des photos d'exemple (simulation)</label>
           </div>
           <div class="field span-2">
-            <label class="check"><input type="checkbox" name="certify" id="p-certify" required> Je certifie être propriétaire du lot et qu'il ne contient pas de produit interdit : amiante, plomb, peintures ou solvants entamés, produits périmés, bouteilles de gaz, matériaux pollués.</label>
+            <label class="check"><input type="checkbox" name="certify" id="p-certify" required${l ? ' checked' : ''}> Je certifie être propriétaire du lot et qu'il ne contient pas de produit interdit : amiante, plomb, peintures ou solvants entamés, produits périmés, bouteilles de gaz, matériaux pollués.</label>
           </div>
         </div>
         <p class="form-error" id="publish-error" hidden></p>
         <div class="form-actions">
-          <button class="btn">Publier l'annonce</button>
+          <button class="btn">${l ? 'Enregistrer les modifications' : 'Publier l\'annonce'}</button>
           <span class="muted small">${u.premium ? 'Premium : publications illimitées, annonce mise en avant.' : `${active} annonce${active > 1 ? 's' : ''} active${active > 1 ? 's' : ''} sur ${FREE_LIMIT}.`} Publication gratuite, commission de 12 % uniquement si le lot est vendu.</span>
         </div>
       </form>`;
@@ -861,7 +1247,7 @@
         <aside class="order-side">
           <section class="panel"><h2 class="h3">${isSeller && !isAdmin ? 'Votre vente' : 'Paiement'}</h2><div class="summary">${amounts}</div></section>
           ${!isAdmin ? `<section class="panel"><h2 class="h3">${isBuyer ? 'Vendeur' : 'Acheteur'}</h2><p><strong>${esc(user(otherId).name)}</strong><br><span class="muted small">${typeLabel(user(otherId))} · ${esc(user(otherId).commune)}</span></p>
-            <p class="small">Téléphone : ${esc(user(otherId).phone || 'non communiqué')}</p>
+            <p class="small">Téléphone : ${user(otherId).prefs && user(otherId).prefs.telephone === false ? 'masqué (contactez-le par message)' : esc(user(otherId).phone || 'non communiqué')}</p>
             <a class="btn btn-small btn-ghost" href="#messages-${o.lotId}-${otherId}">Envoyer un message</a></section>` : ''}
           ${buyer.type === 'pro' && (isBuyer || isAdmin) ? `<section class="panel"><h2 class="h3">Facture</h2>${invoice(o)}</section>` : ''}
         </aside>
@@ -959,12 +1345,17 @@
       }).join('')}</ul>` : '<p class="muted">Aucune alerte enregistrée.</p>'}`;
   }
 
+  function channels() {
+    const c = (me().prefs || defaultPrefs()).canaux;
+    return ['Application'].concat(c.email ? ['e-mail'] : [], c.sms ? ['SMS'] : []).join(' · ');
+  }
+
   function viewNotifs() {
     const list = state.notifs.filter((n) => n.userId === me().id).sort((a, b) => b.at - a.at);
     return `
       <section class="page-head"><p class="eyebrow">Notifications</p><h1>Notifications de ${esc(me().name)}</h1>
         <p class="lead">Les e-mails, SMS et alertes de l'application apparaissent ici pendant la simulation.</p></section>
-      ${list.length ? `<ul class="notif-list">${list.map((n) => `<li class="${n.read ? '' : 'unread'}"><time>${fmtDate(n.at)}</time>${n.link ? `<a href="${n.link}">${esc(n.text)}</a>` : `<span>${esc(n.text)}</span>`}</li>`).join('')}</ul>`
+      ${list.length ? `<ul class="notif-list">${list.map((n) => `<li class="${n.read ? '' : 'unread'}"><time>${fmtDate(n.at)}</time><div>${n.link ? `<a href="${n.link}">${esc(n.text)}</a>` : `<span>${esc(n.text)}</span>`}<br><small class="muted">${channels()}</small></div></li>`).join('')}</ul>`
         : '<p class="muted">Aucune notification.</p>'}`;
   }
 
@@ -1065,6 +1456,8 @@
           <div class="field" data-for="pro"><label for="s-kbis">Extrait Kbis de moins de 3 mois</label><input id="s-kbis" type="file" accept=".pdf,image/*"><p class="hint">Simulation : facultatif.</p></div>
           <div class="field"><label for="s-email">E-mail</label><input id="s-email" name="email" type="email" required autocomplete="email"></div>
           <div class="field"><label for="s-phone">Téléphone</label><input id="s-phone" name="phone" type="tel" required autocomplete="tel"></div>
+          <div class="field"><label for="s-pwd">Mot de passe</label><input id="s-pwd" name="pwd" type="password" required autocomplete="new-password"><p class="hint">8 caractères minimum.</p></div>
+          <div class="field"><label for="s-pwd2">Confirmation du mot de passe</label><input id="s-pwd2" name="pwd2" type="password" required autocomplete="new-password"></div>
           <div class="field" data-for="particulier" hidden><label for="s-code">Code reçu par SMS</label><input id="s-code" name="code" inputmode="numeric" maxlength="6"><p class="hint">Simulation : votre code est <strong>${ui.code}</strong>.</p></div>
           <div class="field"><label for="s-commune">Commune</label><select id="s-commune" name="commune">${Object.keys(COMMUNES).map((c) => `<option>${esc(c)}</option>`).join('')}</select></div>
           <div class="field span-2"><label for="s-address">Adresse</label><input id="s-address" name="address" required autocomplete="street-address"></div>
@@ -1129,13 +1522,81 @@
       <p class="muted small">Règle appliquée : un vendeur dont la note moyenne est inférieure à 3 sur 5 après 10 ventes est suspendu.</p>`;
   }
 
+  /* ---------- Connexion ---------- */
+  function login(id, link) {
+    const u = user(id);
+    state.current = id;
+    u.prefs = u.prefs || defaultPrefs();
+    ui.maxKm = u.prefs.rayon || '';
+    ui.loginReason = '';
+    ui.forgot = '';
+    const dest = link || ui.after || (location.hash === '#connexion' || !location.hash ? '#accueil' : location.hash);
+    ui.after = '';
+    save();
+    toast(`Bonjour ${u.name} : vous êtes connecté.`);
+    go(dest);
+    render();
+  }
+
   /* ---------- Actions ---------- */
   const actions = {
     switch(d) {
-      state.current = d.id;
+      login(d.id, d.link);
+    },
+    logout() {
+      const name = me() ? me().name : '';
+      state.current = null;
+      ui.after = '';
       save();
-      toast(`Vous utilisez maintenant le compte ${user(d.id).name}.`);
-      go(d.link || location.hash || '#demarrer');
+      toast(name ? `${name} est déconnecté.` : 'Vous êtes déconnecté.');
+      go('#accueil');
+      render();
+    },
+    remember(d) { ui.after = d.after; ui.loginReason = 'acheter ce lot'; go('#connexion'); },
+    forgot() { ui.forgot = 'email'; render(true); },
+    'forgot-cancel'() { ui.forgot = ''; render(true); },
+    fav(d) {
+      const u = me();
+      if (!u) { ui.after = location.hash; ui.loginReason = 'garder vos annonces favorites'; go('#connexion'); return; }
+      u.favs = u.favs || [];
+      const id = +d.id;
+      const on = u.favs.includes(id);
+      u.favs = on ? u.favs.filter((x) => x !== id) : u.favs.concat(id);
+      save();
+      toast(on ? 'Retiré de vos favoris.' : 'Ajouté à vos favoris. Vous serez prévenu si le prix baisse.');
+      if (parseRoute().name === 'catalogue') renderResults(); else render(true);
+    },
+    share(d) {
+      const url = `${location.href.split('#')[0]}#lot-${d.id}`;
+      const box = $('#share-box');
+      const show = (ok) => {
+        box.hidden = false;
+        box.innerHTML = `${ok ? 'Lien copié : ' : 'Copiez ce lien : '}<input id="share-url" value="${esc(url)}" readonly aria-label="Lien de l'annonce">`;
+        if (!ok) { const i = $('#share-url'); i.focus(); i.select(); }
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => show(true), () => show(false));
+      else show(false);
+    },
+    cat(d) { ui.cat = d.cat; ui.commune = ''; go('#catalogue'); render(); },
+    'sort-urgent'() { ui.sort = 'urgent'; ui.cat = ''; ui.commune = ''; go('#catalogue'); },
+    'sort-recent'() { ui.sort = 'recent'; ui.cat = ''; ui.commune = ''; go('#catalogue'); },
+    'scroll-to'(d) { const el = document.getElementById(d.target); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
+    'theme-toggle'() {
+      const s = readSettings();
+      s.theme = isDark() ? 'clair' : 'sombre';
+      writeSettings(s);
+      render(true);
+      toast(s.theme === 'sombre' ? 'Mode nuit activé.' : 'Mode jour activé.');
+    },
+    'delete-account'() {
+      const u = me();
+      state.lots.forEach((l) => { if (l.sellerId === u.id && l.status === 'en-ligne') l.status = 'retire'; });
+      state.alerts = state.alerts.filter((a) => a.userId !== u.id);
+      Object.assign(u, { deleted: true, name: 'Compte supprimé', email: '', phone: '', address: '', about: '', pwd: '', favs: [], roles: [] });
+      state.current = null;
+      save();
+      toast('Votre compte a été supprimé.');
+      go('#accueil');
       render();
     },
     scenario(d) { actions.switch(d); },
@@ -1268,6 +1729,65 @@
 
   /* ---------- Formulaires ---------- */
   const forms = {
+    login(f) {
+      const email = f.elements.email.value.trim().toLowerCase();
+      const u = state.users.find((x) => !x.deleted && (x.email || '').toLowerCase() === email);
+      const err = $('#login-error');
+      if (!u || u.pwd !== pwdHash(email, f.elements.pwd.value)) {
+        err.textContent = 'E-mail ou mot de passe incorrect. Vérifiez vos informations, ou utilisez « Mot de passe oublié ».';
+        err.hidden = false;
+        f.elements.pwd.value = '';
+        return;
+      }
+      login(u.id);
+    },
+    'forgot-email'(f) {
+      const email = f.elements.email.value.trim().toLowerCase();
+      const u = state.users.find((x) => !x.deleted && (x.email || '').toLowerCase() === email);
+      if (!u) {
+        const err = $('#forgot-error');
+        err.textContent = 'Aucun compte n\'utilise cette adresse e-mail.';
+        err.hidden = false;
+        return;
+      }
+      ui.forgot = 'code';
+      ui.forgotEmail = u.email;
+      ui.forgotCode = String(Math.floor(100000 + Math.random() * 900000));
+      render(true);
+    },
+    'forgot-reset'(f) {
+      const err = $('#forgot-error');
+      if (f.elements.code.value.trim() !== ui.forgotCode) { err.textContent = 'Ce code ne correspond pas à celui envoyé.'; err.hidden = false; return; }
+      if (f.elements.pwd.value.length < 8) { err.textContent = 'Le mot de passe doit faire au moins 8 caractères.'; err.hidden = false; return; }
+      const u = state.users.find((x) => x.email === ui.forgotEmail);
+      u.pwd = pwdHash(u.email, f.elements.pwd.value);
+      notify(u.id, 'E-mail : votre mot de passe a été modifié.', '#parametres', null, 'compte');
+      ui.forgot = '';
+      save();
+      toast('Mot de passe enregistré. Vous pouvez vous connecter.');
+      render(true);
+    },
+    password(f) {
+      const u = me();
+      const err = $('#password-error');
+      const e = f.elements;
+      let msg = '';
+      if (u.pwd !== pwdHash(u.email, e.old.value)) msg = 'Le mot de passe actuel est incorrect.';
+      else if (e.pwd.value.length < 8) msg = 'Le nouveau mot de passe doit faire au moins 8 caractères.';
+      else if (e.pwd.value !== e.pwd2.value) msg = 'Les deux nouveaux mots de passe ne sont pas identiques.';
+      if (msg) { err.textContent = msg; err.hidden = false; return; }
+      u.pwd = pwdHash(u.email, e.pwd.value);
+      notify(u.id, 'E-mail : votre mot de passe a été modifié.', '#parametres', null, 'compte');
+      save();
+      toast('Mot de passe modifié.');
+      render(true);
+    },
+    'home-search'(f) {
+      ui.q = f.elements.q.value.trim();
+      ui.cat = '';
+      ui.commune = '';
+      go('#catalogue');
+    },
     buy(f) {
       const l = lotById(f.dataset.id);
       const u = me();
@@ -1291,7 +1811,7 @@
       if (!text) return;
       const lotId = +f.dataset.lot;
       state.messages.push({ id: state.next.msg++, lotId, from: me().id, to: f.dataset.to, text, at: now() });
-      notify(f.dataset.to, `Nouveau message de ${me().name} à propos de « ${lotById(lotId).title} ».`, `#messages-${lotId}-${me().id}`);
+      notify(f.dataset.to, `Nouveau message de ${me().name} à propos de « ${lotById(lotId).title} ».`, `#messages-${lotId}-${me().id}`, null, 'message');
       save();
       toast('Message envoyé.');
       if (parseRoute().name === 'lot') render(true); else go(`#messages-${lotId}-${f.dataset.to}`);
@@ -1316,13 +1836,14 @@
       const photos = draftPhotos.slice();
       const example = e.examplePhotos.checked;
       const price = +e.price.value;
+      const existing = f.dataset.id ? lotById(f.dataset.id) : null;
       const problems = [];
       if (!e.title.value.trim()) problems.push('le titre');
       if (!(+e.qty.value > 0)) problems.push('la quantité');
       if (!(price > 0)) problems.push('le prix');
       if (!e.address.value.trim()) problems.push('l\'adresse de retrait');
       if (!e.deadline.value) problems.push('la date limite de retrait');
-      if (photos.length < 3 && !example) problems.push('au moins 3 photos (ou les photos d\'exemple)');
+      if (photos.length < 3 && !example && !(existing && (existing.photos || []).length >= 3)) problems.push('au moins 3 photos (ou les photos d\'exemple)');
       if (!e.certify.checked) problems.push('la certification sur les produits interdits');
       if (problems.length) {
         err.textContent = `Il manque : ${problems.join(', ')}.`;
@@ -1330,15 +1851,35 @@
         err.scrollIntoView({ block: 'center' });
         return;
       }
+      if (existing) {
+        const old = existing.price;
+        Object.assign(existing, { title: e.title.value.trim(), category: e.category.value, qty: +e.qty.value, unit: e.unit.value, etat: e.etat.value,
+          price: r2(price), neuf: +e.neuf.value || null, weight: +e.weight.value || 0, commune: e.commune.value, address: e.address.value.trim(),
+          deadline: new Date(`${e.deadline.value}T18:00`).getTime(), description: e.description.value.trim() });
+        if (photos.length) existing.photos = photos;
+        existing.examplePhotos = !(existing.photos || []).length;
+        draftPhotos = [];
+        let told = 0;
+        if (existing.price < old) {
+          state.users.filter((x) => x.id !== u.id && (x.favs || []).includes(existing.id)).forEach((x) => {
+            notify(x.id, `Baisse de prix sur un de vos favoris : « ${existing.title} » passe de ${money(old)} à ${money(existing.price)}.`, `#lot-${existing.id}`, null, 'alerte');
+            told += 1;
+          });
+        }
+        save();
+        toast(`Annonce modifiée.${told ? ` ${told} personne${told > 1 ? 's ont' : ' a'} été prévenue${told > 1 ? 's' : ''} de la baisse de prix.` : ''}`);
+        go(`#lot-${existing.id}`);
+        return;
+      }
       const l = { id: state.next.lot++, sellerId: u.id, title: e.title.value.trim(), category: e.category.value, qty: +e.qty.value, unit: e.unit.value,
         etat: e.etat.value, price: r2(price), neuf: +e.neuf.value || null, weight: +e.weight.value || 0, commune: e.commune.value,
         address: e.address.value.trim(), deadline: new Date(`${e.deadline.value}T18:00`).getTime(), description: e.description.value.trim(),
-        photos, examplePhotos: !photos.length, status: 'en-ligne', createdAt: now() };
+        photos, examplePhotos: !photos.length, status: 'en-ligne', createdAt: now(), vues: 0 };
       state.lots.push(l);
       draftPhotos = [];
       let alerted = 0;
       state.alerts.filter((a) => a.userId !== u.id && matches(a, l)).forEach((a) => {
-        notify(a.userId, `Alerte « ${a.q} » : nouveau lot « ${l.title} » à ${money(l.price)}.`, `#lot-${l.id}`);
+        notify(a.userId, `Alerte « ${a.q} » : nouveau lot « ${l.title} » à ${money(l.price)}.`, `#lot-${l.id}`, null, 'alerte');
         alerted += 1;
       });
       save();
@@ -1428,7 +1969,11 @@
       const siret = (e.siret.value || '').replace(/\s/g, '');
       if (!e.name.value.trim()) problems.push(type === 'pro' ? 'la raison sociale' : 'votre nom');
       if (type === 'pro' && !/^\d{14}$/.test(siret)) problems.push('un SIRET de 14 chiffres');
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.email.value.trim())) problems.push('une adresse e-mail valide');
+      const mail = e.email.value.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) problems.push('une adresse e-mail valide');
+      else if (state.users.some((x) => (x.email || '').toLowerCase() === mail)) problems.push('une autre adresse e-mail (celle-ci a déjà un compte)');
+      if (e.pwd.value.length < 8) problems.push('un mot de passe d\'au moins 8 caractères');
+      else if (e.pwd.value !== e.pwd2.value) problems.push('deux mots de passe identiques');
       if (e.phone.value.replace(/\D/g, '').length < 10) problems.push('un numéro de téléphone à 10 chiffres');
       if (type === 'particulier' && e.code.value.trim() !== ui.code) problems.push('le bon code de vérification');
       if (!e.address.value.trim()) problems.push('votre adresse');
@@ -1442,19 +1987,45 @@
       const roleVal = f.querySelector('input[name="roles"]:checked').value;
       const id = `n${Date.now().toString(36)}`;
       const u = { id, name: e.name.value.trim(), type, roles: roleVal === 'les-deux' ? ['acheteur', 'vendeur'] : [roleVal], commune: e.commune.value,
-        email: e.email.value.trim(), phone: e.phone.value.trim(), address: e.address.value.trim(), premium: false,
+        email: mail, phone: e.phone.value.trim(), address: e.address.value.trim(), premium: false,
+        pwd: pwdHash(mail, e.pwd.value), favs: [], prefs: defaultPrefs(), createdAt: now(),
         about: type === 'pro' ? 'Compte entreprise créé pendant la simulation.' : 'Compte particulier créé pendant la simulation.' };
       if (type === 'pro') Object.assign(u, { siret, kbis: true });
       else Object.assign(u, { emailVerified: true, phoneVerified: true, idVerified: false });
       state.users.push(u);
       state.current = id;
       ui.code = '';
-      notify(id, `E-mail de confirmation : bienvenue sur ChantierMarket, ${u.name} !`, '#compte');
+      notify(id, `E-mail de confirmation : bienvenue sur ChantierMarket, ${u.name} !`, '#compte', null, 'compte');
       save();
       toast('Compte créé. Vous êtes connecté.');
       go('#compte');
     }
   };
+
+  /* ---------- Site vitrine : annonces du moment ---------- */
+  function showcase() {
+    const box = document.getElementById('annonces-du-moment');
+    if (!box) return;
+    const online = state.lots.filter((l) => l.status === 'en-ligne');
+    const list = online.slice().sort((a, b) => (urgent(b) - urgent(a)) || (b.createdAt - a.createdAt)).slice(0, 4);
+    box.innerHTML = list.map((l) => `<a class="showcase-card" href="app.html#lot-${l.id}">
+        ${photo(l, 'showcase-img')}
+        <span class="showcase-body">
+          <span class="showcase-tags">${deadlineBadge(l)}<span class="chip">${esc(l.etat)}</span></span>
+          <strong>${esc(l.title)}</strong>
+          <span class="showcase-price">${money(l.price)}${l.neuf ? ` <span class="discount">−${discount(l)} %</span>` : ''}</span>
+          <span class="muted small">${esc(l.commune)} · ${esc(user(l.sellerId).name)}</span>
+        </span>
+      </a>`).join('');
+    const n = document.getElementById('annonces-count');
+    if (n) n.textContent = `${online.length} lots disponibles`;
+  }
+
+  if (!document.getElementById('view')) {
+    state = load();
+    showcase();
+    return;
+  }
 
   /* ---------- Écouteurs ---------- */
   function resetArmed() {
@@ -1466,6 +2037,7 @@
   }
 
   document.addEventListener('click', (ev) => {
+    document.querySelectorAll('.account-menu[open]').forEach((d) => { if (!d.contains(ev.target) || ev.target.closest('a')) d.open = false; });
     const el = ev.target.closest('[data-action]');
     if (!el) { resetArmed(); return; }
     const name = el.dataset.action;
@@ -1512,9 +2084,24 @@
 
   document.addEventListener('change', (ev) => {
     const t = ev.target;
-    if (t.id === 'account-select') {
-      if (t.value === '__new') { go('#inscription'); renderHeader('inscription'); return; }
-      actions.switch({ id: t.value });
+    if (t.dataset.setting) {
+      const s = readSettings();
+      s[t.dataset.setting] = t.value;
+      writeSettings(s);
+      renderHeader('parametres');
+      toast('Affichage mis à jour.');
+      return;
+    }
+    if (t.dataset.pref && me()) {
+      const u = me();
+      u.prefs = u.prefs || defaultPrefs();
+      const key = t.dataset.pref;
+      if (key === 'commune') u.commune = t.value;
+      else if (key === 'rayon') { u.prefs.rayon = t.value; ui.maxKm = t.value; }
+      else if (key === 'telephone') u.prefs.telephone = t.checked;
+      else { const [group, name] = key.split('.'); u.prefs[group][name] = t.checked; }
+      save();
+      toast('Paramètre enregistré.');
       return;
     }
     if (t.id === 'f-cat') { ui.cat = t.value; renderResults(); }

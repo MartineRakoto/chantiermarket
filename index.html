@@ -11,6 +11,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="app.css">
 </head>
 <body>
 
@@ -26,6 +28,7 @@
       <span></span><span></span><span></span>
     </button>
     <nav id="nav" class="nav">
+      <a href="#annonces">Annonces</a>
       <a href="#fonctionnement">Comment ça marche</a>
       <a href="#tarifs">Tarifs</a>
       <a href="#a-propos">À propos</a>
@@ -100,6 +103,21 @@
         </div>
         <p class="visual-note">Aperçu illustratif</p>
       </div>
+    </div>
+  </section>
+
+  <!-- Annonces du moment -->
+  <section id="annonces" class="section section-annonces">
+    <div class="container">
+      <div class="showcase-head">
+        <div>
+          <p class="eyebrow">Les annonces du moment</p>
+          <h2>Des lots à sauver près de chez vous.</h2>
+          <p class="muted" id="annonces-count">Lots disponibles autour de Lorient</p>
+        </div>
+        <a href="app.html#catalogue" class="btn btn-ghost">Voir toutes les annonces</a>
+      </div>
+      <div id="annonces-du-moment" class="showcase-grid" aria-live="polite"></div>
     </div>
   </section>
 
@@ -495,5 +513,6 @@
 </footer>
 
 <script src="script.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

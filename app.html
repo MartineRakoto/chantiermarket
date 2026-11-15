@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script src="theme.js"></script>
   <link rel="stylesheet" href="app.css">
 </head>
 <body class="app">
@@ -24,14 +25,13 @@
     </a>
 
     <nav class="app-nav" aria-label="Plateforme">
-      <a href="#demarrer" data-route="demarrer">Démarrer</a>
-      <a href="#catalogue" data-route="catalogue">Acheter</a>
-      <a href="#vendre" data-route="vendre">Vendre</a>
-      <a href="#annonces" data-route="annonces">Mes annonces</a>
-      <a href="#commandes" data-route="commandes">Commandes</a>
+      <a href="#accueil" data-route="accueil">Accueil</a>
+      <a href="#catalogue" data-route="catalogue">Annonces</a>
+      <a href="#vendre" data-route="vendre">Déposer une annonce</a>
+      <a href="#favoris" data-route="favoris">Favoris</a>
       <a href="#messages" data-route="messages">Messages</a>
-      <a href="#alertes" data-route="alertes">Alertes</a>
-      <a href="#compte" data-route="compte">Mon compte</a>
+      <a href="#commandes" data-route="commandes">Commandes</a>
+      <a href="#demarrer" data-route="demarrer">Simulation</a>
       <a href="#admin" data-route="admin" id="nav-admin" hidden>Administration</a>
     </nav>
 
@@ -41,14 +41,12 @@
         <span id="clock">—</span>
       </div>
       <button type="button" class="btn btn-small btn-ghost" data-action="advance" data-hours="24" id="advance-24">+24 h</button>
-      <a href="#notifications" class="notif-btn" aria-label="Notifications">
+      <button type="button" class="icon-btn" id="theme-toggle" data-action="theme-toggle" aria-label="Passer en mode nuit"></button>
+      <a href="#notifications" class="notif-btn" id="notif-link" aria-label="Notifications">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
         <span id="notif-count" class="notif-count" hidden>0</span>
       </a>
-      <label class="account-picker" for="account-select">
-        <span class="sr-only">Compte utilisé</span>
-        <select id="account-select"></select>
-      </label>
+      <div id="account-area" class="account-area"></div>
     </div>
   </div>
 </header>
