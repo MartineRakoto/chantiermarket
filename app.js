@@ -1,7 +1,7 @@
 // ChantierMarket — plateforme de simulation
 // Tout fonctionne dans le navigateur : aucune donnée n'est envoyée, aucun paiement n'est réel.
 // Les règles reprennent la fiche « V1 Infos ChantierMarket » : commission 12 %, versement 48 h,
-// réclamation 48 h, livraison 30 km autour de Lorient, rétractation 14 jours, Premium 39 € HT.
+// réclamation 48 h, livraison 30 km autour de Lorient, rétractation 14 jours, Premium 14,90 € HT, publicité 80 € HT (Wikicréa).
 'use strict';
 
 (function () {
@@ -12,8 +12,9 @@
   const D = 24 * H;
   const COMMISSION = 0.12;
   const TVA = 0.2;
-  const PREMIUM_HT = 39;
-  const FREE_LIMIT = 5; // annonces actives sans Premium (hypothèse de la simulation)
+  const PREMIUM_HT = 14.9; // sans publicité + livraison prioritaire (Wikicréa)
+  const AD_HT = 80; // espace publicitaire, par mois et par annonceur (Wikicréa)
+  const DELIVERY_SHARE = 0.15; // part du tarif de livraison gardée par ChantierMarket (Wikicréa)
 
   const CATEGORIES = [
     'Gros œuvre',
@@ -333,16 +334,16 @@
     let changed = false;
     for (const o of state.orders) {
       if (o.mode === 'livraison') {
-        if (o.status === 'payee' && t >= o.times.paid + 24 * H) {
+        if (o.status === 'payee' && t >= o.times.paid + (o.priority ? 12 : 24) * H) {
           o.status = 'transport';
-          o.times.transport = o.times.paid + 24 * H;
+          o.times.transport = o.times.paid + (o.priority ? 12 : 24) * H;
           addEvent(o, 'Lot pris en charge par le transporteur partenaire.', o.times.transport);
           notify(o.buyerId, `SMS : votre commande CM-${o.id} sera livrée demain.`, `#commande-${o.id}`, o.times.transport);
           changed = true;
         }
-        if (o.status === 'transport' && t >= o.times.paid + 48 * H) {
+        if (o.status === 'transport' && t >= o.times.paid + (o.priority ? 24 : 48) * H) {
           o.status = 'livree';
-          o.times.delivered = o.times.paid + 48 * H;
+          o.times.delivered = o.times.paid + (o.priority ? 24 : 48) * H;
           addEvent(o, 'Lot livré au pied du véhicule. L\'acheteur a 48 h pour confirmer la réception ou signaler un problème.', o.times.delivered);
           notify(o.buyerId, `SMS : le transporteur est arrivé avec la commande CM-${o.id}. Vérifiez le lot et confirmez la réception.`, `#commande-${o.id}`, o.times.delivered);
           notify(o.sellerId, `La commande CM-${o.id} a été livrée à ${user(o.buyerId).name}.`, `#commande-${o.id}`, o.times.delivered);
@@ -365,7 +366,7 @@
           notify(u.id, 'Votre abonnement Premium est terminé.', '#compte', u.renewAt);
         } else {
           u.monthsPaid += 1;
-          notify(u.id, `Abonnement Premium renouvelé : ${PREMIUM_HT} € HT prélevés.`, '#compte', u.renewAt);
+          notify(u.id, `Abonnement Premium renouvelé : ${money(PREMIUM_HT)} HT prélevés.`, '#compte', u.renewAt);
           u.renewAt += 30 * D;
         }
         changed = true;
@@ -463,6 +464,13 @@
   const roleChips = (u) => u.roles.map((r) => `<span class="chip">${r === 'vendeur' ? 'Vendeur' : 'Acheteur'}</span>`).join(' ');
   const needAccount = (text) => `<section class="panel"><p>${text}</p></section>`;
 
+  /* ---------- Publicité (masquée pour les abonnés Premium) ---------- */
+  function adBanner() {
+    const u = me();
+    if (u && u.premium) return '';
+    return `<aside class="ad-banner" aria-label="Publicité"><span class="ad-tag">Publicité</span><p><strong>MatériOuest Location</strong> · Bétonnières, échafaudages et mini-pelles à la journée, livrés autour de Lorient.</p><span class="muted small">Annonce de démonstration · ${money(AD_HT)} HT par mois · les abonnés Premium ne voient pas de publicité</span></aside>`;
+  }
+
   /* ---------- Accueil des annonces ---------- */
   function viewHome() {
     const u = me();
@@ -490,6 +498,8 @@
       <section class="home-cats" aria-label="Catégories">
         ${CATEGORIES.map((cat, i) => `<button type="button" class="cat-tile" data-action="cat" data-cat="${esc(cat)}"><img class="cat-ico" src="${P(CAT_PHOTOS[i])}" alt="" loading="lazy"><span>${esc(cat)}<small>${count(cat)} lot${count(cat) > 1 ? 's' : ''}</small></span></button>`).join('')}
       </section>
+
+      ${adBanner()}
 
       ${last.length ? `<section class="home-section">
         <div class="home-section-head"><div><h2>Dernière chance</h2><p class="muted">Ces lots doivent être retirés dans les prochains jours. Après, ils partent à la benne.</p></div><a href="#catalogue" data-action="sort-urgent">Tout voir</a></div>
@@ -742,7 +752,8 @@
         <li><strong>48 h</strong> pour signaler un lot non conforme</li>
         <li><strong>29, 45 ou 59 € HT</strong> de livraison selon la distance, jusqu'à 30 km de Lorient</li>
         <li><strong>14 jours</strong> de rétractation pour un particulier qui achète à une entreprise</li>
-        <li><strong>${PREMIUM_HT} € HT</strong> par mois pour Premium ; sans Premium, ${FREE_LIMIT} annonces actives au maximum</li>
+        <li><strong>${money(PREMIUM_HT)} HT</strong> par mois pour Premium : sans publicité, livraison prioritaire en 24 h</li>
+        <li><strong>${money(AD_HT)} HT</strong> par mois pour un espace publicitaire (négoces, loueurs, transporteurs)</li>
       </ul>
 
       <section class="panel panel-danger">
@@ -757,7 +768,7 @@
   function visibleLots() {
     const c = myCommune();
     let list = state.lots.filter((l) => l.status === 'en-ligne' && !isSuspended(l.sellerId))
-      .map((l) => ({ l, km: dist(l.commune, c), sp: isPremium(l.sellerId) }));
+      .map((l) => ({ l, km: dist(l.commune, c), sp: false }));
     if (ui.q) { const q = norm(ui.q); list = list.filter((x) => norm(`${x.l.title} ${x.l.description} ${x.l.category}`).includes(q)); }
     if (ui.cat) list = list.filter((x) => x.l.category === ui.cat);
     if (ui.maxKm) list = list.filter((x) => x.km <= +ui.maxKm);
@@ -791,8 +802,9 @@
         <div class="field-inline"><label for="f-km">Distance</label><select id="f-km">${opt('', 'Toutes', ui.maxKm)}${opt('10', 'Moins de 10 km', ui.maxKm)}${opt('20', 'Moins de 20 km', ui.maxKm)}${opt('30', 'Moins de 30 km', ui.maxKm)}</select></div>
         <div class="field-inline"><label for="f-sort">Trier par</label><select id="f-sort">${opt('distance', 'Distance', ui.sort)}${opt('prix-croissant', 'Prix croissant', ui.sort)}${opt('prix-decroissant', 'Prix décroissant', ui.sort)}${opt('recent', 'Plus récents', ui.sort)}${opt('urgent', 'À retirer en premier', ui.sort)}</select></div>
       </form>
+      ${adBanner()}
       <div id="results"></div>
-      <p class="muted small">Classement par défaut : distance, puis date de publication. Les annonces des abonnés Premium apparaissent en tête avec la mention « Sponsorisé ».</p>`;
+      <p class="muted small">Classement par défaut : distance, puis date de publication.</p>`;
   }
 
   function renderResults() {
@@ -815,7 +827,7 @@
   function lotCard({ l, km, sp }) {
     const s = user(l.sellerId);
     if (km === undefined) km = dist(l.commune, myCommune());
-    if (sp === undefined) sp = isPremium(l.sellerId);
+    if (sp === undefined) sp = false;
     const gone = l.status !== 'en-ligne';
     return `<article class="lot-card${gone ? ' is-gone' : ''}">
       <a class="lot-link" href="#lot-${l.id}">
@@ -887,7 +899,7 @@
       <div class="lot-layout">
         <div class="lot-main">
           ${gallery}
-          <div class="tags">${isPremium(s.id) ? '<span class="chip chip-sponso">Sponsorisé</span>' : ''}${deadlineBadge(l)}<span class="chip">${esc(l.category)}</span><span class="chip">État : ${esc(l.etat)}</span></div>
+          <div class="tags">${deadlineBadge(l)}<span class="chip">${esc(l.category)}</span><span class="chip">État : ${esc(l.etat)}</span></div>
           <h1>${esc(l.title)}</h1>
           <p class="lot-price big"><strong>${money(l.price)}</strong>${l.neuf ? ` <span class="discount">−${discount(l)} % sur le neuf (${money(l.neuf)})</span>` : ''}</p>
           <div class="lot-actions">
@@ -986,7 +998,7 @@
           <span><strong>Retrait sur place</strong> · gratuit<br><small>${esc(l.address)}, ${esc(l.commune)}. Prévoyez un véhicule adapté.</small></span></label>
         <label class="option${canDeliver ? '' : ' is-disabled'}"><input type="radio" name="mode" value="livraison"${canDeliver ? '' : ' disabled'}>
           <span><strong>Livraison sur votre chantier</strong>${canDeliver ? ` · ${money(fee)} HT` : ''}<br><small>${canDeliver
-            ? `${String(km).replace('.', ',')} km · sous 24 à 48 h ouvrées · au pied du véhicule`
+            ? `${String(km).replace('.', ',')} km · ${u.premium ? 'livraison prioritaire en 24 h (Premium)' : 'sous 24 à 48 h ouvrées'} · au pied du véhicule`
             : 'Indisponible : la livraison couvre 30 km autour de Lorient.'}</small></span></label>
       </fieldset>
       <fieldset>
@@ -1040,11 +1052,6 @@
     }
     if (isSuspended(u.id)) return needAccount('Votre compte vendeur est suspendu : votre note moyenne est inférieure à 3 sur 5 après 10 ventes. Contactez le service client.');
     const active = state.lots.filter((l) => l.sellerId === u.id && l.status === 'en-ligne').length;
-    if (!u.premium && active >= FREE_LIMIT) {
-      return `<section class="page-head"><p class="eyebrow">Vendre</p><h1>Limite d'annonces atteinte</h1></section>
-        <section class="panel"><p>Vous avez ${active} annonces en ligne. Sans abonnement, la limite est de ${FREE_LIMIT} annonces actives.</p>
-        ${u.type === 'pro' ? `<p>Passez à Premium pour publier sans limite et mettre vos annonces en avant (${PREMIUM_HT} € HT par mois, sans engagement).</p><a class="btn btn-small" href="#compte">Voir l'abonnement Premium</a>` : '<p>Retirez une annonce ou attendez qu\'un lot soit vendu.</p>'}</section>`;
-    }
     return lotForm(null, active);
   }
 
@@ -1087,7 +1094,7 @@
         <p class="form-error" id="publish-error" hidden></p>
         <div class="form-actions">
           <button class="btn">${l ? 'Enregistrer les modifications' : 'Publier l\'annonce'}</button>
-          <span class="muted small">${u.premium ? 'Premium : publications illimitées, annonce mise en avant.' : `${active} annonce${active > 1 ? 's' : ''} active${active > 1 ? 's' : ''} sur ${FREE_LIMIT}.`} Publication gratuite, commission de 12 % uniquement si le lot est vendu.</span>
+          <span class="muted small">Publication gratuite et sans limite. Commission de 12 % uniquement si le lot est vendu.</span>
         </div>
       </form>`;
   }
@@ -1426,12 +1433,12 @@
         ${u.type === 'pro' ? `
         <section class="panel ${u.premium ? 'panel-premium' : ''}">
           <h2 class="h3">Abonnement Premium</h2>
-          <p>${PREMIUM_HT} € HT par mois : annonces mises en avant avec la mention « Sponsorisé » et publications illimitées. Sans engagement.</p>
+          <p>${money(PREMIUM_HT)} HT par mois : navigation sans publicité et livraison prioritaire, en 24 h au lieu de 48 h. Sans engagement.</p>
           ${u.premium
             ? `<p><span class="chip chip-sponso">Actif</span> depuis le ${fmtDay(u.premiumSince)} · ${u.monthsPaid} mois payé${u.monthsPaid > 1 ? 's' : ''}</p>
                <p class="small">${u.cancelled ? `Résilié : l'abonnement s'arrête le ${fmtDay(u.renewAt)}.` : `Prochain renouvellement le ${fmtDay(u.renewAt)}.`}</p>
                ${u.cancelled ? `<button class="btn btn-small" data-action="premium-resume">Reprendre l'abonnement</button>` : `<button class="btn btn-small btn-ghost" data-action="premium-cancel" data-confirm="Confirmer la résiliation">Résilier</button>`}`
-            : `<button class="btn btn-small" data-action="premium-subscribe">S'abonner pour ${PREMIUM_HT} € HT par mois (simulation)</button>`}
+            : `<button class="btn btn-small" data-action="premium-subscribe">S'abonner pour ${money(PREMIUM_HT)} HT par mois (simulation)</button>`}
         </section>` : ''}
 
         <section class="panel">
@@ -1493,7 +1500,7 @@
     const valid = state.orders.filter((o) => !['annulee', 'remboursee', 'retractee'].includes(o.status));
     const gmv = valid.reduce((s, o) => s + o.price - Math.min(o.refund, o.price), 0);
     const commissions = valid.reduce((s, o) => s + (o.price - Math.min(o.refund, o.price)) * COMMISSION, 0);
-    const delivery = valid.filter((o) => o.mode === 'livraison').reduce((s, o) => s + o.feeHT, 0);
+    const delivery = valid.filter((o) => o.mode === 'livraison').reduce((s, o) => s + o.feeHT * DELIVERY_SHARE, 0);
     const premium = state.users.reduce((s, x) => s + (x.monthsPaid || 0) * PREMIUM_HT, 0);
     const kg = state.orders.filter((o) => ['recue', 'versee'].includes(o.status)).reduce((s, o) => s + (lotById(o.lotId).weight || 0), 0);
     const claims = state.orders.filter((o) => o.status === 'litige');
@@ -1507,7 +1514,7 @@
         ${stat(state.lots.filter((l) => l.status === 'vendu').length, 'lots vendus')}
         ${stat(money(gmv), 'de matériaux vendus')}
         ${stat(money(r2(commissions)), 'de commissions (12 %)')}
-        ${stat(money(delivery), 'de livraisons HT')}
+        ${stat(money(r2(delivery)), 'de part sur les livraisons (15 %)')}
         ${stat(money(premium), 'd\'abonnements Premium HT')}
         ${stat(tonnes(kg), 'évitées en décharge')}
       </div>
@@ -1647,7 +1654,6 @@
     relist(d) {
       const u = me();
       const active = state.lots.filter((l) => l.sellerId === u.id && l.status === 'en-ligne').length;
-      if (!u.premium && active >= FREE_LIMIT) { toast(`Limite de ${FREE_LIMIT} annonces actives atteinte.`); return; }
       lotById(d.id).status = 'en-ligne';
       save();
       toast('Annonce remise en ligne.');
@@ -1698,7 +1704,7 @@
     'premium-subscribe'() {
       const u = me();
       Object.assign(u, { premium: true, premiumSince: now(), renewAt: now() + 30 * D, monthsPaid: (u.monthsPaid || 0) + 1, cancelled: false });
-      notify(u.id, `Abonnement Premium activé : ${PREMIUM_HT} € HT prélevés. Vos annonces sont mises en avant.`, '#compte');
+      notify(u.id, `Abonnement Premium activé : ${money(PREMIUM_HT)} HT prélevés. Plus de publicité, et vos livraisons passent en priorité.`, '#compte');
       save();
       toast('Premium activé.');
       render(true);
@@ -1807,7 +1813,7 @@
       const pay = f.querySelector('input[name="pay"]:checked').value;
       const km = dist(l.commune, myCommune());
       const o = { id: state.next.order++, lotId: l.id, buyerId: u.id, sellerId: l.sellerId, price: l.price, mode, km,
-        feeHT: mode === 'livraison' ? feeHT(km) : 0, pay, status: 'payee', times: { paid: now() }, events: [], refund: 0, payout: 0 };
+        feeHT: mode === 'livraison' ? feeHT(km) : 0, pay, priority: mode === 'livraison' && !!u.premium, status: 'payee', times: { paid: now() }, events: [], refund: 0, payout: 0 };
       addEvent(o, `Paiement de ${money(total(o))} par ${pay === 'carte' ? 'carte bancaire' : 'virement'}. Les fonds sont conservés par le prestataire de paiement jusqu'à la remise du lot.`);
       state.orders.push(o);
       l.status = 'vendu';

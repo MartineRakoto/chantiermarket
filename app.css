@@ -580,6 +580,16 @@ a.seller-card:hover { border-color: var(--green); }
 .switch-row input[role="switch"]:focus-visible { outline: 3px solid var(--green-light); outline-offset: 2px; }
 .btn[disabled] { opacity: 0.5; cursor: not-allowed; transform: none; }
 
+/* Bandeau publicitaire (masqué pour Premium) */
+.ad-banner {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+  margin: 0 0 20px; padding: 14px 18px; border-radius: 14px;
+  background: var(--surface); border: 1px dashed var(--line-strong);
+}
+.ad-banner p { margin: 0; flex: 1 1 320px; min-width: 0; }
+.ad-tag { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; background: var(--muted-bg); color: var(--ink-soft); }
+.home-cats + .ad-banner { margin-top: 24px; }
+
 /* Photos réelles */
 .gallery-single { grid-template-columns: 1fr; grid-template-rows: 1fr; height: 380px; }
 .gallery-single > :first-child { grid-row: auto; }
